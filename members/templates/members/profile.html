@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}會員資料{% endblock %}
+
+{% block content %}
+  <h2>會員資料 - {{ request.user.username }}</h2>
+  
+  <!-- 顯示累積回饋積分 -->
+  <h3>累積回饋積分：{{ total_points }}</h3>
+  
+  <!-- 加入使用積分按鈕，連結到 redeem_points_view -->
+  <p>
+      <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
+  </p>
+  
+  <!-- 消費紀錄表格 -->
+  <h3>消費紀錄</h3>
+  <table class="table table-striped">
+      <thead>
+          <tr>
+              <th>銷售品項</th>
+              <th>消費金額 (元)</th>
+              <th>回饋積分</th>
+              <th>銷售時間</th>
+              <th>建立時間</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for record in records %}
+          <tr>
+              <td>{{ record.sold_item }}</td>
+              <td>{{ record.amount }}</td>
+              <td>{{ record.reward_points }}</td>
+              <td>{{ record.sales_time|date:"Y-m-d H:i" }}</td>
+              <td>{{ record.created_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+              <td colspan="5">目前無消費紀錄</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+  </table>
+
+  <!-- 其他操作按鈕 -->
+  <p>
+      <a href="{% url 'profile_edit' %}" class="btn btn-secondary">編輯會員資料</a>
+  </p>
+  <p><a href="{% url 'home' %}" class="btn btn-link">返回首頁</a></p>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}會員首頁{% endblock %}
+
+{% block content %}
+  <h1>歡迎，{{ request.user.username }}！</h1>
+  <p>這裡是您的會員首頁。</p>
+
+  <!-- 一般會員操作按鈕 -->
+  <a href="{% url 'profile' %}" class="btn btn-secondary">會員資料</a>
+  <a href="{% url 'logout' %}" class="btn btn-danger">登出</a>
+
+      </a>
+  </div>
+{% endblock %}

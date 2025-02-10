@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}使用積分兌換{% endblock %}
+
+{% block content %}
+  <h2>使用積分兌換</h2>
+
+  <!-- 顯示使用者目前可用的積分 -->
+  <p>您目前可用的積分：<strong>{{ available_points }}</strong></p>
+
+  <!-- 顯示成功或錯誤訊息 -->
+  {% if message %}
+    <div class="alert alert-success">{{ message }}</div>
+  {% endif %}
+
+  <!-- 顯示兌換表單 -->
+  <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-primary">兌換積分</button>
+  </form>
+
+  <p><a href="{% url 'profile' %}" class="btn btn-link">返回會員資料</a></p>
+{% endblock %}

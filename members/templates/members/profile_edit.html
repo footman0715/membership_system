@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}編輯會員資料{% endblock %}
+
+{% block content %}
+    <h2>編輯會員資料</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">儲存變更</button>
+    </form>
+    <p>
+        <a href="{% url 'profile' %}" class="btn btn-link">返回會員資料</a>
+    </p>
+{% endblock %}

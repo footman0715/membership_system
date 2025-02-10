@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}同步狀態{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h2>Google Sheets 同步狀態</h2>
+        <p>{{ message }}</p>
+        <a href="{% url 'super_admin_dashboard' %}" class="btn btn-primary">返回管理後台</a>
+    </div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}會員註冊{% endblock %}
+
+{% block content %}
+    <h2>會員註冊</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">註冊</button>
+    </form>
+    <p>
+        已有帳號？<a href="{% url 'login' %}">點此登入</a>
+    </p>
+{% endblock %}

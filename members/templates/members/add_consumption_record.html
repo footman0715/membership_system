@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>新增消費紀錄</title>
+</head>
+<body>
+    <h2>新增消費紀錄</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">送出</button>
+    </form>
+    <p><a href="{% url 'profile' %}">返回會員資料</a></p>
+</body>
+</html>
