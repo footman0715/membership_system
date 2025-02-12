@@ -17,9 +17,8 @@ import openpyxl
 from .models import ConsumptionRecord, RedemptionRecord, GoogleSheetsSyncLog
 from .forms import ConsumptionRecordForm, RedeemPointsForm
 
-# 匯入 Google Sheets 同步函數
-from .google_sheets import fetch_google_sheets_data
-
+# 匯入 Google Sheets 同步及資料清洗輔助函式
+from .google_sheets import fetch_google_sheets_data, safe_strip, safe_decimal
 
 # -----------------------------------------
 # 1. 使用者註冊
@@ -36,7 +35,6 @@ def register_view(request):
         form = UserCreationForm()
     return render(request, 'members/register.html', {'form': form})
 
-
 # -----------------------------------------
 # 2. 使用者登入
 # -----------------------------------------
@@ -52,7 +50,6 @@ def login_view(request):
         form = AuthenticationForm()
     return render(request, 'members/login.html', {'form': form})
 
-
 # -----------------------------------------
 # 3. 使用者登出
 # -----------------------------------------
@@ -60,7 +57,6 @@ def logout_view(request):
     """ 使用者登出 """
     logout(request)
     return redirect('login')
-
 
 # -----------------------------------------
 # 4. 會員首頁
@@ -70,21 +66,21 @@ def home_view(request):
     """ 會員首頁 """
     return render(request, 'members/home.html')
 
-
 # -----------------------------------------
 # 5. 會員資料顯示
 # -----------------------------------------
 @login_required
 def profile_view(request):
-    """ 會員資料顯示 - 直接顯示 Google Sheets 同步後的消費紀錄 """
-    records = request.user.consumption_records.all().order_by('-sales_time')  # **與 Sheet9 相同排序**
+    """
+    會員資料顯示 - 直接顯示 Google Sheets 同步後的消費紀錄
+    以銷售時間排序，並計算累積回饋積分
+    """
+    records = request.user.consumption_records.all().order_by('-sales_time')
     total_points = records.aggregate(total=Sum('reward_points'))['total'] or 0
-    
     return render(request, 'members/profile.html', {
         'records': records,
         'total_points': total_points
     })
-
 
 # -----------------------------------------
 # 6. 新增消費紀錄
@@ -103,7 +99,6 @@ def add_consumption_record(request):
         form = ConsumptionRecordForm()
     return render(request, 'members/add_consumption_record.html', {'form': form})
 
-
 # -----------------------------------------
 # 7. 會員資料編輯
 # -----------------------------------------
@@ -119,7 +114,6 @@ def profile_edit_view(request):
         form = UserChangeForm(instance=request.user)
     return render(request, 'members/profile_edit.html', {'form': form})
 
-
 # -----------------------------------------
 # 8. 超級管理者後台
 # -----------------------------------------
@@ -127,19 +121,14 @@ def profile_edit_view(request):
 def super_admin_dashboard(request):
     """ 超級管理者後台 """
     message = ""
-
     if request.method == 'POST':
-        # **修正錯誤，確保 `request` 被傳遞**
         if 'sync_google_sheets' in request.POST:
             message = update_from_google_sheets(request)
-
     members = User.objects.all().order_by('username')
-
     return render(request, 'members/super_admin_dashboard.html', {
         'message': message,
         'members': members
     })
-
 
 # -----------------------------------------
 # 9. 超級管理者登入 / 登出
@@ -159,13 +148,11 @@ def super_admin_login_view(request):
         form = AuthenticationForm()
     return render(request, 'members/super_admin_login.html', {'form': form})
 
-
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_logout_view(request):
     """ 超級管理者登出 """
     logout(request)
     return redirect('super_admin_login')
-
 
 # -----------------------------------------
 # 10. 積分兌換
@@ -197,51 +184,37 @@ def redeem_points_view(request):
         'message': message
     })
 
-
 # -----------------------------------------
 # 11. 手動同步 Google Sheets
 # -----------------------------------------
-
 @user_passes_test(lambda u: u.is_superuser)
 def update_from_google_sheets(request):
-    """ 從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致) """
-    
+    """
+    從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)
+    1. 取得資料，刪除現有的消費紀錄。
+    2. 對每筆記錄使用 safe_strip 與 safe_decimal 清洗資料。
+    3. 解析銷售時間字串，若格式錯誤則使用當前時間。
+    4. 建立新的 ConsumptionRecord 紀錄。
+    5. 若找不到對應會員或發生其它例外，將錯誤訊息累加至 message 字串。
+    """
     records = fetch_google_sheets_data()
     message = "✅ Google Sheets 同步完成！\n"
 
-    # **刪除舊的消費紀錄，確保與 Google Sheets 完全一致**
+    # 刪除舊的消費紀錄，確保資料一致
     ConsumptionRecord.objects.all().delete()
 
     for row in records:
         try:
-            from .google_sheets import safe_strip  # 請確保在檔案開頭有這個匯入
-
-            email = safe_strip(row.get("會員 Email", ""))# 避免 KeyError
-            amount_raw = row.get("消費金額(元)", 0)  # **確保有值**from decimal import Decimal
-            from .google_sheets import safe_decimal
-
-            amount_raw = row.get("消費金額(元)", 0)
-            if isinstance(amount_raw, (int, float)):
-               amount = Decimal(amount_raw)
-            else:
-                 # 使用 safe_decimal 來處理字串並去除可能的逗號
-               amount = safe_decimal(row.get("消費金額(元)", "0").replace(",", ""))
-
-
-            # **確保金額為字串，才能使用 replace()**
-            if isinstance(amount_raw, int) or isinstance(amount_raw, float):
-                amount = Decimal(amount_raw)  # 直接轉換
-            else:
-                amount = Decimal(str(amount_raw).replace(",", ""))  # 避免 `int` 沒有 replace()
-
+            email = safe_strip(row.get("會員 Email", ""))
+            # 將 "消費金額(元)" 取出，先移除逗號後再轉換為 Decimal
+            amount = safe_decimal(row.get("消費金額(元)", "0").replace(",", ""))
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
-
-            sales_time_str = row.get("銷售時間", "")  # 確保時間格式
-
-            # **確保會員 Email 存在**
+            sales_time_str = safe_strip(row.get("銷售時間", ""))
+            
+            # 取得會員對象
             user = User.objects.get(email=email)
-
-            # **確保時間格式正確**
+            
+            # 解析銷售時間
             if sales_time_str:
                 try:
                     sales_time = timezone.datetime.strptime(sales_time_str, "%Y-%m-%d %H:%M:%S")
@@ -250,14 +223,13 @@ def update_from_google_sheets(request):
             else:
                 sales_time = timezone.now()
 
-            # **新增消費紀錄**
+            # 建立消費紀錄
             ConsumptionRecord.objects.create(
                 user=user,
                 amount=amount,
                 sold_item=sold_item,
                 sales_time=sales_time
             )
-
         except User.DoesNotExist:
             message += f"❌ 找不到會員 Email: {email}，該筆紀錄未新增。\n"
         except Exception as e:

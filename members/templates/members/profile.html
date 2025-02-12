@@ -8,7 +8,7 @@
   <!-- 顯示累積回饋積分 -->
   <h3>累積回饋積分：{{ total_points }}</h3>
   
-  <!-- 加入使用積分按鈕，連結到 redeem_points_view -->
+  <!-- 加入使用積分按鈕 -->
   <p>
       <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
   </p>
@@ -22,7 +22,6 @@
               <th>消費金額 (元)</th>
               <th>回饋積分</th>
               <th>銷售時間</th>
-              <th>建立時間</th>
           </tr>
       </thead>
       <tbody>
@@ -31,12 +30,11 @@
               <td>{{ record.sold_item }}</td>
               <td>{{ record.amount }}</td>
               <td>{{ record.reward_points }}</td>
-              <td>{{ record.sales_time|date:"Y-m-d H:i" }}</td>
-              <td>{{ record.created_at|date:"Y-m-d H:i" }}</td>
+              <td>{{ record.sales_time|date:"Y-m-d " }}</td>
           </tr>
           {% empty %}
           <tr>
-              <td colspan="5">目前無消費紀錄</td>
+              <td colspan="4">目前無消費紀錄</td>
           </tr>
           {% endfor %}
       </tbody>
