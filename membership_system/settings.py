@@ -77,10 +77,11 @@ WSGI_APPLICATION = 'membership_system.wsgi.application'
 # 5️⃣ 資料庫設定 (Database) - 使用 Render PostgreSQL
 # ==============================
 
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip().replace("postgresql://", "postgres://")
 
-if DEBUG:  # 只在 Debug 模式下顯示
-    print(f"🔍 DEBUG: DATABASE_URL = '{DATABASE_URL}'")  # 加上單引號檢查是否有額外的空格
+
+if DEBUG:
+    print(f"🔍 DEBUG: DATABASE_URL = '{DATABASE_URL}'")  # 檢查是否正確
 
 if not DATABASE_URL:
     raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
@@ -88,6 +89,7 @@ if not DATABASE_URL:
 DATABASES = {
     'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
 }
+
 
 # ==============================
 # 6️⃣ 密碼驗證設定 (Password Validation)
@@ -169,3 +171,7 @@ if GOOGLE_SHEETS_ENABLED:
         print("❌ 找不到試算表，請檢查 SPREADSHEET_ID 是否正確，以及 API 權限")
     except Exception as e:
         print(f"⚠️ 無法初始化 Google Sheets API: {str(e)}")
+
+import os
+print("環境變數:", os.environ)  # 列出所有環境變數
+
