@@ -82,20 +82,27 @@ def safe_decimal(value, default="0"):
       3. 如果清洗後的結果為空，或包含多個小數點，則返回預設值。
     """
     try:
+        # 若不是字串，先轉成字串
         if not isinstance(value, str):
             value = str(value)
         value = value.strip()
         if not value:
+            print("safe_decimal: 空值，使用預設值", default)
             return Decimal(default)
-        # 只保留數字、點和負號
+        # 只保留數字、小數點與負號
         cleaned = re.sub(r"[^\d\.\-]", "", value)
-        # 檢查是否有多於一個小數點
-        if cleaned.count('.') > 1:
-            print(f"⚠️ 清洗後的數值 '{cleaned}' 出現多個小數點，使用預設值 {default}")
+        # 如果清洗後的結果為空，則返回預設值
+        if not cleaned:
+            print("safe_decimal: 清洗後為空，使用預設值", default)
             return Decimal(default)
+        # 檢查是否有多個小數點
+        if cleaned.count('.') > 1:
+            print(f"⚠️ safe_decimal: 清洗後的數值 '{cleaned}' 出現多個小數點，使用預設值 {default}")
+            return Decimal(default)
+        print(f"safe_decimal: 原始值='{value}', 清洗後='{cleaned}'")
         return Decimal(cleaned)
     except (InvalidOperation, Exception) as e:
-        print(f"⚠️ 無法將 '{value}' 轉換為 Decimal，使用預設值 {default}: {e}")
+        print(f"⚠️ safe_decimal: 無法將 '{value}' 轉換為 Decimal，使用預設值 {default}: {e}")
         return Decimal(default)
 
 # -----------------------------
