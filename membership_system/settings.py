@@ -3,6 +3,7 @@ Django settings for membership_system project.
 """
 
 import os
+import json
 from pathlib import Path
 import dj_database_url
 import gspread
@@ -76,18 +77,17 @@ WSGI_APPLICATION = 'membership_system.wsgi.application'
 # 5️⃣ 資料庫設定 (Database) - 使用 Render PostgreSQL
 # ==============================
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if not DATABASE_URL:
     raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=DATABASE_URL,
-        conn_max_age=600,
-        ssl_require=True
-    )
+    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
 }
+
+print(f"✅ DEBUG: DATABASE_URL = {DATABASE_URL}")  # Debugging Line
+
 # ==============================
 # 6️⃣ 密碼驗證設定 (Password Validation)
 # ==============================
