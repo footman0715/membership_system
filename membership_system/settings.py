@@ -4,6 +4,7 @@ Django settings for membership_system project.
 
 import os
 from pathlib import Path
+import dj_database_url
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -13,12 +14,11 @@ from google.oauth2.service_account import Credentials
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-hl^x(+%6noq3x=e&!%bb(f7p#*5+bbso0ss*pitrz!l!23)9pj'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-hl^%6noq3x=e&!%bb(f7p#*5+bbso0ss*pitrz!l!23)9pj')
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'  # 預設為 False，除非在環境變數設為 True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(",")
 
 # ==============================
 # 2️⃣ 安裝的 Django APP
@@ -33,7 +33,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'members',  # 會員系統 App
 ]
-
 
 # ==============================
 # 3️⃣ Middleware
@@ -50,7 +49,6 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'membership_system.urls'
-
 
 # ==============================
 # 4️⃣ 模板設定 (Templates)
@@ -74,18 +72,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'membership_system.wsgi.application'
 
-
 # ==============================
-# 5️⃣ 資料庫設定 (Database)
+# 5️⃣ 資料庫設定 (Database) - 使用 Render PostgreSQL
 # ==============================
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv("DATABASE_URL", "postgresql://membership_db_user:Onb3q5F0zO5f2qLPk4i3UwWhzgN1dCLG@dpg-culiu3ogph6c73ddauo0-a.oregon-postgres.render.com/membership_db"),
+        conn_max_age=600,  # 保持連線，提高效能
+        ssl_require=True   # 強制使用 SSL，增強安全性
+    )
 }
-
 
 # ==============================
 # 6️⃣ 密碼驗證設定 (Password Validation)
@@ -106,7 +103,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # ==============================
 # 7️⃣ 語言 & 時區設定 (Language & Timezone)
 # ==============================
@@ -121,20 +117,21 @@ USE_L10N = True
 
 USE_TZ = True
 
-
 # ==============================
 # 8️⃣ 靜態檔案設定 (Static Files)
 # ==============================
 
 STATIC_URL = '/static/'
-
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),  # 你的靜態檔案目錄
+]
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")  # 用於 collectstatic
 
 # ==============================
 # 9️⃣ 預設 Primary Key (PK)
 # ==============================
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 
 # ==============================
 # 🔹 會員登入登出設定
@@ -144,38 +141,27 @@ LOGIN_URL = '/members/login/'
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-
 # ==============================
 # 🔹 Google Sheets API 設定
 # ==============================
 
-# 確保 credentials.json 在 Django 根目錄
-SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "credentials.json")
+GOOGLE_SHEETS_ENABLED = os.getenv('GOOGLE_SHEETS_ENABLED', 'False') == 'True'
 
-# 設定 Google Sheets API 權限範圍
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-# 讀取 Google Sheets 憑證
-creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-client = gspread.authorize(creds)
-
-# 設定 Google Sheets ID & 工作表名稱
-SPREADSHEET_ID = "1DsDd1YFcUNX6mtSfoLVDfStSNT9GTGcLIhhRS5eH2Ss"  # ✅ 你的試算表 ID
-SHEET_NAME = "Sheet9"  # ✅ 你的試算表名稱
-
-# 嘗試連接 Google Sheets
-try:
-    sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
-    print(f"✅ 成功連接到試算表: {sheet.title}")
-except gspread.exceptions.SpreadsheetNotFound:
-    print("❌ 找不到試算表，請檢查 SPREADSHEET_ID 是否正確，以及 API 權限")
-
-import os
-
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "static"),  # 你的靜態檔案目錄
-]
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")  # 用於 collectstatic
-
+if GOOGLE_SHEETS_ENABLED:
+    try:
+        SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_CREDENTIALS")
+        
+        if SERVICE_ACCOUNT_FILE:
+            creds = Credentials.from_service_account_info(json.loads(SERVICE_ACCOUNT_FILE))
+            client = gspread.authorize(creds)
+            SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', "1DsDd1YFcUNX6mtSfoLVDfStSNT9GTGcLIhhRS5eH2Ss")
+            SHEET_NAME = os.getenv('SHEET_NAME', "Sheet9")
+            sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
+            print(f"✅ 成功連接到試算表: {sheet.title}")
+        else:
+            print("⚠️ GOOGLE_CREDENTIALS 環境變數未設置，無法使用 Google Sheets API")
+    except gspread.exceptions.SpreadsheetNotFound:
+        print("❌ 找不到試算表，請檢查 SPREADSHEET_ID 是否正確，以及 API 權限")
+    except Exception as e:
+        print(f"⚠️ 無法初始化 Google Sheets API: {str(e)}")
 
