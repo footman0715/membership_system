@@ -214,8 +214,19 @@ def update_from_google_sheets(request):
 
     for row in records:
         try:
-            email = row.get("會員 Email", "").strip()  # 避免 KeyError
-            amount_raw = row.get("消費金額(元)", 0)  # **確保有值**
+            from .google_sheets import safe_strip  # 請確保在檔案開頭有這個匯入
+
+            email = safe_strip(row.get("會員 Email", ""))# 避免 KeyError
+            amount_raw = row.get("消費金額(元)", 0)  # **確保有值**from decimal import Decimal
+            from .google_sheets import safe_decimal
+
+            amount_raw = row.get("消費金額(元)", 0)
+            if isinstance(amount_raw, (int, float)):
+               amount = Decimal(amount_raw)
+            else:
+                 # 使用 safe_decimal 來處理字串並去除可能的逗號
+               amount = safe_decimal(row.get("消費金額(元)", "0").replace(",", ""))
+
 
             # **確保金額為字串，才能使用 replace()**
             if isinstance(amount_raw, int) or isinstance(amount_raw, float):
@@ -223,7 +234,8 @@ def update_from_google_sheets(request):
             else:
                 amount = Decimal(str(amount_raw).replace(",", ""))  # 避免 `int` 沒有 replace()
 
-            sold_item = row.get("銷售品項", "未知品項").strip()
+            sold_item = safe_strip(row.get("銷售品項", "未知品項"))
+
             sales_time_str = row.get("銷售時間", "")  # 確保時間格式
 
             # **確保會員 Email 存在**
