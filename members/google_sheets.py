@@ -75,8 +75,11 @@ def safe_strip(value):
 def safe_decimal(value, default="0"):
     """
     嘗試將 value 轉換成 Decimal，若失敗則返回預設值。
-    - 如果 value 不是字串，先轉換為字串並去除前後空白。
-    - 使用正則表達式只保留數字、小數點與正負號，以避免非合法字元干擾 Decimal 轉換。
+    
+    步驟：
+      1. 若 value 不是字串，先轉換為字串，並去除前後空白。
+      2. 使用正則表達式只保留數字、小數點與負號。
+      3. 如果清洗後的結果為空，或包含多個小數點，則返回預設值。
     """
     try:
         if not isinstance(value, str):
@@ -84,8 +87,12 @@ def safe_decimal(value, default="0"):
         value = value.strip()
         if not value:
             return Decimal(default)
-        # 只保留數字、點和正負號
+        # 只保留數字、點和負號
         cleaned = re.sub(r"[^\d\.\-]", "", value)
+        # 檢查是否有多於一個小數點
+        if cleaned.count('.') > 1:
+            print(f"⚠️ 清洗後的數值 '{cleaned}' 出現多個小數點，使用預設值 {default}")
+            return Decimal(default)
         return Decimal(cleaned)
     except (InvalidOperation, Exception) as e:
         print(f"⚠️ 無法將 '{value}' 轉換為 Decimal，使用預設值 {default}: {e}")
