@@ -76,14 +76,18 @@ WSGI_APPLICATION = 'membership_system.wsgi.application'
 # 5️⃣ 資料庫設定 (Database) - 使用 Render PostgreSQL
 # ==============================
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv("DATABASE_URL", "postgresql://membership_db_user:Onb3q5F0zO5f2qLPk4i3UwWhzgN1dCLG@dpg-culiu3ogph6c73ddauo0-a.oregon-postgres.render.com/membership_db"),
-        conn_max_age=600,  # 保持連線，提高效能
-        ssl_require=True   # 強制使用 SSL，增強安全性
+        default=DATABASE_URL,
+        conn_max_age=600,
+        ssl_require=True
     )
 }
-
 # ==============================
 # 6️⃣ 密碼驗證設定 (Password Validation)
 # ==============================
