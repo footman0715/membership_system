@@ -1,0 +1,3 @@
+mkdir static
+cd static
+type NUL > .gitkeep   # Windows 用法 (或用任何你喜歡的方式創建一個空檔案)
