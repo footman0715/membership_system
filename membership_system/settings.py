@@ -79,17 +79,12 @@ WSGI_APPLICATION = 'membership_system.wsgi.application'
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip().replace("postgresql://", "postgres://")
 
-
-if DEBUG:
-    print(f"🔍 DEBUG: DATABASE_URL = '{DATABASE_URL}'")  # 檢查是否正確
-
 if not DATABASE_URL:
     raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
 
 DATABASES = {
     'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
 }
-
 
 # ==============================
 # 6️⃣ 密碼驗證設定 (Password Validation)
@@ -156,29 +151,10 @@ GOOGLE_SHEETS_ENABLED = os.getenv('GOOGLE_SHEETS_ENABLED', 'False') == 'True'
 
 if GOOGLE_SHEETS_ENABLED:
     try:
-import json
+        SERVICE_ACCOUNT_INFO = os.getenv("GOOGLE_CREDENTIALS")
 
-SERVICE_ACCOUNT_INFO = os.getenv("GOOGLE_CREDENTIALS")
-
-if SERVICE_ACCOUNT_INFO:
-    try:
-        SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "credentials.json")
-        with open(SERVICE_ACCOUNT_FILE, "w") as f:
-            f.write(SERVICE_ACCOUNT_INFO)  # 寫入 JSON 檔案
-        creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
-        client = gspread.authorize(creds)
-        SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', "1DsDd1YFcUNX6mtSfoLVDfStSNT9GTGcLIhhRS5eH2Ss")
-        SHEET_NAME = os.getenv('SHEET_NAME', "Sheet9")
-        sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
-        print(f"✅ 成功連接到試算表: {sheet.title}")
-    except Exception as e:
-        print(f"⚠️ 無法初始化 Google Sheets API: {str(e)}")
-else:
-    print("⚠️ GOOGLE_CREDENTIALS 環境變數未設置，無法使用 Google Sheets API")
-
-        
-        if SERVICE_ACCOUNT_FILE:
-            creds = Credentials.from_service_account_info(json.loads(SERVICE_ACCOUNT_FILE))
+        if SERVICE_ACCOUNT_INFO:
+            creds = Credentials.from_service_account_info(json.loads(SERVICE_ACCOUNT_INFO))
             client = gspread.authorize(creds)
             SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', "1DsDd1YFcUNX6mtSfoLVDfStSNT9GTGcLIhhRS5eH2Ss")
             SHEET_NAME = os.getenv('SHEET_NAME', "Sheet9")
@@ -190,7 +166,3 @@ else:
         print("❌ 找不到試算表，請檢查 SPREADSHEET_ID 是否正確，以及 API 權限")
     except Exception as e:
         print(f"⚠️ 無法初始化 Google Sheets API: {str(e)}")
-
-import os
-print("環境變數:", os.environ)  # 列出所有環境變數
-
