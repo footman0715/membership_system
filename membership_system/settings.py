@@ -3,10 +3,10 @@ Django settings for membership_system project.
 """
 
 import os
-import json
 from pathlib import Path
 import dj_database_url
 import gspread
+import json
 from google.oauth2.service_account import Credentials
 
 # ==============================
@@ -77,25 +77,14 @@ WSGI_APPLICATION = 'membership_system.wsgi.application'
 # 5️⃣ 資料庫設定 (Database) - 使用 Render PostgreSQL
 # ==============================
 
-import os
-import dj_database_url
-
-# 讀取環境變數
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL or DATABASE_URL.strip() == "":
-    raise ValueError("❌ 環境變數 DATABASE_URL 未設定或為空！請檢查 Render 的 Environment 設定！")
-
-print(f"✅ DEBUG: 讀取的 DATABASE_URL={DATABASE_URL}")  # 這行用於 Debug，之後可以刪除
+if not DATABASE_URL:
+    raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=DATABASE_URL,
-        conn_max_age=600,
-        ssl_require=True
-    )
+    'default': dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
 }
-
 
 # ==============================
 # 6️⃣ 密碼驗證設定 (Password Validation)
@@ -177,4 +166,3 @@ if GOOGLE_SHEETS_ENABLED:
         print("❌ 找不到試算表，請檢查 SPREADSHEET_ID 是否正確，以及 API 權限")
     except Exception as e:
         print(f"⚠️ 無法初始化 Google Sheets API: {str(e)}")
-
