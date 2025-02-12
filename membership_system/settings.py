@@ -81,12 +81,12 @@ import os
 import dj_database_url
 
 # 讀取環境變數
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if not DATABASE_URL:
     raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
 
-print(f"✅ DATABASE_URL: {DATABASE_URL}")  # 用於 Debug，之後可以移除
+print(f"✅ DEBUG: DATABASE_URL={DATABASE_URL}")  # 用於 Debug，之後可以移除
 
 DATABASES = {
     'default': dj_database_url.config(
