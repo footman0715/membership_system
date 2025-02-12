@@ -80,9 +80,8 @@ WSGI_APPLICATION = 'membership_system.wsgi.application'
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 if DEBUG:  # 只在 Debug 模式下顯示
-    print(f"🔍 DEBUG: DATABASE_URL = {DATABASE_URL}")
+    print(f"🔍 DEBUG: DATABASE_URL = '{DATABASE_URL}'")  # 加上單引號檢查是否有額外的空格
 
-# 確保 DATABASE_URL 存在
 if not DATABASE_URL:
     raise ValueError("❌ 環境變數 DATABASE_URL 未設定，請在 Render 後台的 Environment 變數中新增它！")
 
