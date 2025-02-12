@@ -170,8 +170,10 @@ if GOOGLE_SHEETS_ENABLED:
         # 從環境變數中讀取 GOOGLE_CREDENTIALS（必須是合法的 JSON 格式字串）
         SERVICE_ACCOUNT_INFO = os.getenv("GOOGLE_CREDENTIALS")
         if SERVICE_ACCOUNT_INFO:
-            # 解析 JSON 並建立憑證物件
-            creds = Credentials.from_service_account_info(json.loads(SERVICE_ACCOUNT_INFO))
+            # 指定正確的 OAuth scope (這裡只需要存取試算表)
+            SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+            # 解析 JSON 並建立憑證物件，這裡加入 scopes 參數
+            creds = Credentials.from_service_account_info(json.loads(SERVICE_ACCOUNT_INFO), scopes=SCOPES)
             # 利用 gspread 建立 Google Sheets API client
             client = gspread.authorize(creds)
             # 從環境變數讀取試算表相關設定，若未設定則使用預設值
