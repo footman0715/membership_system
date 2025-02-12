@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import gspread
 from decimal import Decimal, InvalidOperation
 from google.oauth2.service_account import Credentials
@@ -73,15 +74,21 @@ def safe_strip(value):
 
 def safe_decimal(value, default="0"):
     """
-    嘗試將 value 轉換成 Decimal，若失敗則返回預設值
+    嘗試將 value 轉換成 Decimal，若失敗則返回預設值。
+    - 如果 value 不是字串，先轉換為字串並去除前後空白。
+    - 使用正則表達式只保留數字、小數點與正負號，以避免非合法字元干擾 Decimal 轉換。
     """
-    if not isinstance(value, str):
-        value = str(value)
-    value = value.strip()
     try:
-        return Decimal(value)
-    except InvalidOperation:
-        print(f"⚠️ 無法將 '{value}' 轉換為 Decimal，使用預設值 {default}")
+        if not isinstance(value, str):
+            value = str(value)
+        value = value.strip()
+        if not value:
+            return Decimal(default)
+        # 只保留數字、點和正負號
+        cleaned = re.sub(r"[^\d\.\-]", "", value)
+        return Decimal(cleaned)
+    except (InvalidOperation, Exception) as e:
+        print(f"⚠️ 無法將 '{value}' 轉換為 Decimal，使用預設值 {default}: {e}")
         return Decimal(default)
 
 # -----------------------------
@@ -90,11 +97,10 @@ def safe_decimal(value, default="0"):
 def process_record(record):
     """
     根據欄位名稱處理單筆記錄的資料清洗
-    假設 "金額"、"價格"、"數量" 等欄位預期為數字，其它欄位則清除多餘空白
+    假設 "金額"、"價格"、"數量" 等欄位預期為數字，其它欄位則僅清除多餘空白
     """
     cleaned_record = {}
     for key, value in record.items():
-        # 若欄位名稱預期為數字，則嘗試轉換為 Decimal
         if key in ["金額", "價格", "數量"]:
             cleaned_record[key] = safe_decimal(value)
         else:
