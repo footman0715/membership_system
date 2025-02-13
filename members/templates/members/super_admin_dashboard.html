@@ -36,7 +36,7 @@
         <td>{{ member.is_superuser }}</td>
         <td>
           <!-- 這裡示範連結到 Django 管理後台的使用者編輯頁面，您也可以自訂其他功能 -->
-          <a href="{% url 'admin:auth_user_change' member.id %}" class="btn btn-sm btn-secondary">編輯</a>
+         <a href="{% url 'super_admin_edit_user' member.id %}" class="btn btn-sm btn-secondary">編輯</a>
         </td>
       </tr>
       {% endfor %}

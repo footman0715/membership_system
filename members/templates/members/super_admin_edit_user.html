@@ -1,16 +1,54 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block title %}編輯使用者 - {{ user_obj.username }}{% endblock %}
 
 {% block content %}
-<h2>編輯使用者 - {{ user_obj.username }}</h2>
+<div class="container mt-4">
+  <h2 class="mb-3">編輯使用者 - {{ user_obj.username }}</h2>
+  <hr>
 
-<form method="post">
+  <!-- 若有訊息 (例如儲存成功) 也可以在這裡顯示 -->
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" class="mb-3">
     {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">儲存變更</button>
-</form>
+    <!-- 
+      這裡示範將表單欄位一一渲染，也可以直接用 {{ form.as_p }}。
+      如果想更細緻控制，可對每個欄位加上 Bootstrap class。
+    -->
+    <div class="mb-3">
+      {{ form.username.label_tag }}
+      {{ form.username }}
+    </div>
+    <div class="mb-3">
+      {{ form.first_name.label_tag }}
+      {{ form.first_name }}
+    </div>
+    <div class="mb-3">
+      {{ form.last_name.label_tag }}
+      {{ form.last_name }}
+    </div>
+    <div class="mb-3">
+      {{ form.email.label_tag }}
+      {{ form.email }}
+    </div>
 
-<p>
-    <a href="{% url 'super_admin_dashboard' %}" class="btn btn-link">返回超級管理者後台</a>
-</p>
+    <button type="submit" class="btn btn-primary">儲存變更</button>
+  </form>
+
+  <hr>
+  <p>
+    <a href="{% url 'super_admin_dashboard' %}" class="btn btn-secondary">
+      返回超級管理者後台
+    </a>
+  </p>
+</div>
 {% endblock %}

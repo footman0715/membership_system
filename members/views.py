@@ -176,9 +176,6 @@ def super_admin_dashboard(request):
 # 新增：超級管理者編輯指定 user
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_edit_user(request, user_id):
-    """
-    自訂的使用者編輯頁面
-    """
     user_obj = get_object_or_404(User, pk=user_id)
     if request.method == 'POST':
         form = ProfileEditForm(request.POST, instance=user_obj)
@@ -193,7 +190,6 @@ def super_admin_edit_user(request, user_id):
         'form': form,
         'user_obj': user_obj
     })
-
 # 9. 超級管理者登入 / 登出
 def super_admin_login_view(request):
     if request.method == 'POST':
