@@ -9,7 +9,6 @@
   <div class="alert alert-info">{{ message }}</div>
 {% endif %}
 
-<!-- (A) 匯入每日銷售明細 (若有使用 ExcelUploadForm 等) -->
 <h2>匯入每日銷售明細</h2>
 <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
@@ -19,11 +18,10 @@
 
 <hr>
 
-<!-- (B) 會員資料管理 + 成為超級管理者勾選項目 -->
 <h2>會員資料管理</h2>
+<!-- 這個表單用來更新超級管理者 -->
 <form method="post">
   {% csrf_token %}
-  <!-- 這個隱藏欄位用來區分是「更新超級管理者」的動作 -->
   <input type="hidden" name="action" value="update_superusers">
 
   <table class="table table-striped">
@@ -43,23 +41,25 @@
         <td>{{ member.email }}</td>
         <td>{{ member.is_superuser }}</td>
         <td>
-          <!-- 若該使用者目前是超級管理者，就勾選 -->
+          <!-- 若該使用者目前是 superuser，就預設勾選 -->
           <input type="checkbox" name="superusers" value="{{ member.id }}"
                  {% if member.is_superuser %}checked{% endif %}>
         </td>
         <td>
-          <!-- 連結到自訂的使用者編輯頁面 -->
+          <!-- 連結到自訂的編輯頁面 -->
           <a href="{% url 'super_admin_edit_user' member.id %}" class="btn btn-sm btn-secondary">編輯</a>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+
   <button type="submit" class="btn btn-primary">更新超級管理者</button>
 </form>
 
-<!-- (C) 手動同步 Google Sheets 按鈕 -->
 <hr>
+
+<!-- 手動同步 Google Sheets 按鈕 -->
 <form method="post">
     {% csrf_token %}
     <button type="submit" name="sync_google_sheets" class="btn btn-primary">🔄 手動同步 Google Sheets</button>
@@ -69,11 +69,10 @@
 <p>{{ message }}</p>
 {% endif %}
 
-<!-- (D) 超級管理者登出按鈕 -->
+<!-- 超級管理者登出按鈕 -->
 <form method="post" action="{% url 'logout' %}">
     {% csrf_token %}
     <button type="submit" class="btn btn-danger">🚪 登出</button>
 </form>
 <p>{{ message }}</p>
-
 {% endblock %}

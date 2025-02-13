@@ -172,33 +172,39 @@ def profile_edit_view(request):
 # 8. 超級管理者後台
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_dashboard(request):
+    """
+    超級管理者後台：
+      - 匯入每日銷售明細
+      - 批次更新超級管理者
+      - 顯示所有使用者並可進入自訂的使用者編輯頁面
+    """
     message = ""
     if request.method == 'POST':
-        if 'sync_google_sheets' in request.POST:
+        # (A) 批次更新超級管理者
+        if request.POST.get('action') == 'update_superusers':
+            posted_ids = request.POST.getlist('superusers')  # 勾選到的使用者 id 清單
+            # 1) 把除了自己以外的使用者全部 is_superuser=False
+            User.objects.exclude(id=request.user.id).update(is_superuser=False)
+            # 2) 若自己沒有被勾選，但目前是 superuser，也可以保留
+            #   => 已在 exclude 中避免被重置
+            # 3) 把勾選到的使用者設為 True
+            if posted_ids:
+                User.objects.filter(id__in=posted_ids).update(is_superuser=True)
+
+            message = "已更新超級管理者設定！"
+
+        # (B) 手動同步 Google Sheets
+        elif 'sync_google_sheets' in request.POST:
             message = update_from_google_sheets(request)
+
+    # 撈取所有使用者資料
     members = User.objects.all().order_by('username')
+
     return render(request, 'members/super_admin_dashboard.html', {
         'message': message,
         'members': members
     })
 
-# 新增：超級管理者編輯指定 user
-@user_passes_test(lambda u: u.is_superuser)
-def super_admin_edit_user(request, user_id):
-    user_obj = get_object_or_404(User, pk=user_id)
-    if request.method == 'POST':
-        form = ProfileEditForm(request.POST, instance=user_obj)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f"已成功更新使用者「{user_obj.username}」的資料！")
-            return redirect('super_admin_dashboard')
-    else:
-        form = ProfileEditForm(instance=user_obj)
-
-    return render(request, 'members/super_admin_edit_user.html', {
-        'form': form,
-        'user_obj': user_obj
-    })
 # 9. 超級管理者登入 / 登出
 def super_admin_login_view(request):
     if request.method == 'POST':
