@@ -10,6 +10,7 @@ from django.db.models import Sum
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, UserChangeForm
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from decimal import Decimal
 import openpyxl
 
@@ -191,9 +192,11 @@ def redeem_points_view(request):
 def update_from_google_sheets(request):
     """
     從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)
+    
     1. 取得資料，刪除現有的消費紀錄。
     2. 對每筆記錄使用 safe_strip 與 safe_decimal 清洗資料。
-    3. 解析銷售時間字串，若格式錯誤則使用當前時間。
+    3. 使用 django.utils.dateparse.parse_datetime 嘗試解析銷售時間，
+       若解析失敗則使用當前時間。
     4. 建立新的 ConsumptionRecord 紀錄。
     5. 若找不到對應會員或發生其它例外，將錯誤訊息累加至 message 字串。
     """
@@ -206,22 +209,19 @@ def update_from_google_sheets(request):
     for row in records:
         try:
             email = safe_strip(row.get("會員 Email", ""))
-            # 將 "消費金額(元)" 取出，先移除逗號後再轉換為 Decimal
             amount = safe_decimal(row.get("消費金額(元)", "0").replace(",", ""))
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
             sales_time_str = safe_strip(row.get("銷售時間", ""))
-            
+
             # 取得會員對象
             user = User.objects.get(email=email)
-            
-            # 解析銷售時間
-            if sales_time_str:
-                try:
-                    sales_time = timezone.datetime.strptime(sales_time_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    sales_time = timezone.now()
-            else:
+
+            # 嘗試解析銷售時間，使用 django.utils.dateparse.parse_datetime
+            parsed_time = parse_datetime(sales_time_str)
+            if parsed_time is None:
                 sales_time = timezone.now()
+            else:
+                sales_time = parsed_time
 
             # 建立消費紀錄
             ConsumptionRecord.objects.create(
