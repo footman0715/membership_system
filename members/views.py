@@ -208,25 +208,24 @@ def update_from_google_sheets(request):
     """
     從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)
     
-    1. 取得資料，刪除現有的消費紀錄。
+    1. 取得資料並刪除現有的消費紀錄。
     2. 對每筆記錄使用 safe_strip 與 safe_decimal 清洗資料。
-    3. 使用 django.utils.dateparse.parse_datetime 嘗試解析銷售時間，
-       若解析失敗則使用當前時間。
+    3. 嘗試解析「銷售時間」欄位，依次嘗試使用 parse_datetime、"%Y-%m-%d %H:%M:%S" 與 "%Y-%m-%d %H:%M" 格式，
+       若均失敗則使用當前時間。
     4. 建立新的 ConsumptionRecord 紀錄。
     5. 若找不到對應會員或發生其它例外，將錯誤訊息累加至 message 字串。
     """
     records = fetch_google_sheets_data()
     message = "✅ Google Sheets 同步完成！\n"
 
-    # 刪除舊的消費紀錄，確保資料一致
+    # 刪除舊的消費紀錄
     ConsumptionRecord.objects.all().delete()
 
     for row in records:
         try:
             email = safe_strip(row.get("會員 Email", ""))
-            # 取得消費金額並確保先轉為字串，再呼叫 replace 以去除逗號
-            raw_amount = row.get("消費金額(元)", "0")
-            raw_amount = str(raw_amount)  # 確保是字串
+            # 將「消費金額(元)」先轉為字串並去除逗號，再轉換為 Decimal
+            raw_amount = safe_strip(row.get("消費金額(元)", "0"))
             raw_amount = raw_amount.replace(",", "")
             amount = safe_decimal(raw_amount)
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
@@ -235,10 +234,18 @@ def update_from_google_sheets(request):
             # 取得會員對象
             user = User.objects.get(email=email)
 
-            # 嘗試解析銷售時間，若失敗則使用當前時間
+            # 嘗試解析銷售時間
             parsed_time = parse_datetime(sales_time_str)
             if parsed_time is None:
-                sales_time = timezone.now()
+                try:
+                    # 嘗試格式: 2025-02-24 15:30:00
+                    sales_time = timezone.datetime.strptime(sales_time_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    try:
+                        # 嘗試格式: 2025-02-24 15:30
+                        sales_time = timezone.datetime.strptime(sales_time_str, "%Y-%m-%d %H:%M")
+                    except ValueError:
+                        sales_time = timezone.now()
             else:
                 sales_time = parsed_time
 
