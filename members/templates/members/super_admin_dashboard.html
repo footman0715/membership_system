@@ -3,28 +3,36 @@
 {% block title %}超級管理者後台{% endblock %}
 
 {% block content %}
-  <h1>超級管理者後台</h1>
+<h1>超級管理者後台</h1>
 
-  {% if message %}
-    <div class="alert alert-info">{{ message }}</div>
-  {% endif %}
+{% if message %}
+  <div class="alert alert-info">{{ message }}</div>
+{% endif %}
 
-  <h2>匯入每日銷售明細</h2>
-  <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-      {{ form.as_p }}
-      <button type="submit" class="btn btn-primary">上傳並匯入</button>
-  </form>
+<!-- (A) 匯入每日銷售明細 (若有使用 ExcelUploadForm 等) -->
+<h2>匯入每日銷售明細</h2>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">上傳並匯入</button>
+</form>
 
-  <hr>
+<hr>
 
-  <h2>會員資料管理</h2>
+<!-- (B) 會員資料管理 + 成為超級管理者勾選項目 -->
+<h2>會員資料管理</h2>
+<form method="post">
+  {% csrf_token %}
+  <!-- 這個隱藏欄位用來區分是「更新超級管理者」的動作 -->
+  <input type="hidden" name="action" value="update_superusers">
+
   <table class="table table-striped">
     <thead>
       <tr>
         <th>使用者名稱</th>
         <th>Email</th>
         <th>是否超級管理者</th>
+        <th>成為超級管理者</th>
         <th>操作</th>
       </tr>
     </thead>
@@ -35,14 +43,23 @@
         <td>{{ member.email }}</td>
         <td>{{ member.is_superuser }}</td>
         <td>
-          <!-- 這裡示範連結到 Django 管理後台的使用者編輯頁面，您也可以自訂其他功能 -->
-         <a href="{% url 'super_admin_edit_user' member.id %}" class="btn btn-sm btn-secondary">編輯</a>
+          <!-- 若該使用者目前是超級管理者，就勾選 -->
+          <input type="checkbox" name="superusers" value="{{ member.id }}"
+                 {% if member.is_superuser %}checked{% endif %}>
+        </td>
+        <td>
+          <!-- 連結到自訂的使用者編輯頁面 -->
+          <a href="{% url 'super_admin_edit_user' member.id %}" class="btn btn-sm btn-secondary">編輯</a>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-<!-- ✅ 手動同步 Google Sheets 按鈕 -->
+  <button type="submit" class="btn btn-primary">更新超級管理者</button>
+</form>
+
+<!-- (C) 手動同步 Google Sheets 按鈕 -->
+<hr>
 <form method="post">
     {% csrf_token %}
     <button type="submit" name="sync_google_sheets" class="btn btn-primary">🔄 手動同步 Google Sheets</button>
@@ -52,7 +69,7 @@
 <p>{{ message }}</p>
 {% endif %}
 
-<!-- ✅ 超級管理者登出按鈕 -->
+<!-- (D) 超級管理者登出按鈕 -->
 <form method="post" action="{% url 'logout' %}">
     {% csrf_token %}
     <button type="submit" class="btn btn-danger">🚪 登出</button>

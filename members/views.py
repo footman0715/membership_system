@@ -17,6 +17,8 @@ import openpyxl
 import re
 from datetime import datetime
 from django.core.paginator import Paginator
+from django.contrib.auth.models import User
+
 
 from .forms import (
     ConsumptionRecordForm,
