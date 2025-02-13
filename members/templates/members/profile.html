@@ -3,46 +3,111 @@
 {% block title %}會員資料{% endblock %}
 
 {% block content %}
-  <h2>會員資料 - {{ request.user.username }}</h2>
-  
-  <!-- 顯示累積回饋積分 -->
-  <h3>累積回饋積分：{{ total_points }}</h3>
-  
-  <!-- 加入使用積分按鈕 -->
-  <p>
-      <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
-  </p>
-  
-  <!-- 消費紀錄表格 -->
-  <h3>消費紀錄</h3>
-  <table class="table table-striped">
-      <thead>
-          <tr>
-              <th>銷售品項</th>
-              <th>消費金額 (元)</th>
-              <th>回饋積分</th>
-              <th>銷售時間</th>
-          </tr>
-      </thead>
-      <tbody>
-          {% for record in records %}
-          <tr>
-              <td>{{ record.sold_item }}</td>
-              <td>{{ record.amount }}</td>
-              <td>{{ record.reward_points }}</td>
-              <td>{{ record.sales_time|date:"Y-m-d " }}</td>
-          </tr>
-          {% empty %}
-          <tr>
-              <td colspan="4">目前無消費紀錄</td>
-          </tr>
-          {% endfor %}
-      </tbody>
-  </table>
+<h2>會員資料 - {{ request.user.username }}</h2>
 
-  <!-- 其他操作按鈕 -->
-  <p>
-      <a href="{% url 'profile_edit' %}" class="btn btn-secondary">編輯會員資料</a>
-  </p>
-  <p><a href="{% url 'home' %}" class="btn btn-link">返回首頁</a></p>
+<!-- 顯示累積回饋積分 -->
+<h3>累積回饋積分：{{ total_points }}</h3>
+
+<!-- 加入使用積分按鈕 -->
+<p>
+    <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
+</p>
+
+<!-- 搜尋表單 -->
+<form method="get" action="">
+    <div class="row mb-3">
+        <div class="col-auto">
+            <!-- 保留 show_more=1 時，確保分頁時仍帶此參數 -->
+            {% if is_paginated %}
+                <input type="hidden" name="show_more" value="1">
+            {% endif %}
+            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="搜尋銷售品項">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">搜尋</button>
+        </div>
+    </div>
+</form>
+
+<!-- 消費紀錄表格 -->
+<h3>消費紀錄</h3>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>銷售品項</th>
+            <th>消費金額 (元)</th>
+            <th>回饋積分</th>
+            <th>銷售時間</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if is_paginated %}
+            <!-- 分頁模式 -->
+            {% for record in page_obj.object_list %}
+            <tr>
+                <td>{{ record.sold_item }}</td>
+                <td>{{ record.amount }}</td>
+                <td>{{ record.reward_points }}</td>
+                <td>{{ record.sales_time|date:"Y-m-d" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4">目前無消費紀錄</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <!-- 預設只顯示最近 10 筆 -->
+            {% for record in records %}
+            <tr>
+                <td>{{ record.sold_item }}</td>
+                <td>{{ record.amount }}</td>
+                <td>{{ record.reward_points }}</td>
+                <td>{{ record.sales_time|date:"Y-m-d" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4">目前無消費紀錄</td>
+            </tr>
+            {% endfor %}
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- 分頁 or 顯示更多 -->
+{% if is_paginated %}
+    <!-- 分頁導覽 -->
+    <div class="d-flex justify-content-between mb-3">
+        {% if page_obj.has_previous %}
+            <a class="btn btn-secondary"
+               href="?show_more=1&page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}">
+               上一頁
+            </a>
+        {% else %}
+            <button class="btn btn-secondary" disabled>上一頁</button>
+        {% endif %}
+
+        {% if page_obj.has_next %}
+            <a class="btn btn-secondary"
+               href="?show_more=1&page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}">
+               下一頁
+            </a>
+        {% else %}
+            <button class="btn btn-secondary" disabled>下一頁</button>
+        {% endif %}
+    </div>
+{% else %}
+    <!-- 顯示更多按鈕 -->
+    <p>
+        <a class="btn btn-secondary"
+           href="?show_more=1{% if search_query %}&q={{ search_query }}{% endif %}">
+           顯示更多
+        </a>
+    </p>
+{% endif %}
+
+<!-- 其他操作按鈕 -->
+<p>
+    <a href="{% url 'profile_edit' %}" class="btn btn-secondary">編輯會員資料</a>
+</p>
+<p><a href="{% url 'home' %}" class="btn btn-link">返回首頁</a></p>
 {% endblock %}

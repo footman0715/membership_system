@@ -16,6 +16,8 @@ from decimal import Decimal
 import openpyxl
 import re
 from datetime import datetime
+from django.core.paginator import Paginator
+
 
 # 匯入本 App 的模型與表單
 from .models import ConsumptionRecord, RedemptionRecord, GoogleSheetsSyncLog
@@ -128,16 +130,48 @@ def home_view(request):
 @login_required
 def profile_view(request):
     """
-    會員資料顯示 - 直接顯示 Google Sheets 同步後的消費紀錄
-    以銷售時間排序，並計算累積回饋積分
+    會員資料顯示：
+      1. 預設只顯示最近 10 筆紀錄 (show_more != 1)。
+      2. 若 GET 參數中 show_more=1，則進入分頁模式，每頁 20 筆。
+      3. 提供搜尋功能 (q) 依銷售品項篩選紀錄。
+      4. 顯示所有紀錄的累積回饋積分 (total_points)。
     """
-    records = request.user.consumption_records.all().order_by('-sales_time')
-    total_points = records.aggregate(total=Sum('reward_points'))['total'] or 0
+    # 取得搜尋關鍵字 (q)
+    search_query = request.GET.get('q', '').strip()
+    # 決定是否顯示更多 (分頁模式)
+    show_more = request.GET.get('show_more', '0')
+    # 分頁頁碼
+    page_number = request.GET.get('page', 1)
 
-    return render(request, 'members/profile.html', {
-        'records': records,
-        'total_points': total_points
-    })
+    # 所有紀錄，用來計算總積分
+    all_records = request.user.consumption_records.all()
+    total_points = all_records.aggregate(total=Sum('reward_points'))['total'] or 0
+
+    # 依銷售時間排序，並依關鍵字篩選
+    records = all_records.order_by('-sales_time')
+    if search_query:
+        records = records.filter(sold_item__icontains=search_query)
+
+    if show_more == '1':
+        # 進入分頁模式：每頁顯示 20 筆
+        paginator = Paginator(records, 20)
+        page_obj = paginator.get_page(page_number)
+        # 使用同一個模板，但用參數判斷是否分頁
+        return render(request, 'members/profile.html', {
+            'is_paginated': True,
+            'page_obj': page_obj,
+            'search_query': search_query,
+            'total_points': total_points,
+        })
+    else:
+        # 預設顯示最近 10 筆
+        records = records[:10]
+        return render(request, 'members/profile.html', {
+            'is_paginated': False,
+            'records': records,
+            'search_query': search_query,
+            'total_points': total_points,
+        })
 
 
 # -----------------------------------------
