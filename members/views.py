@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, UserChangeForm
 from django.contrib.auth.models import User
+from django.contrib import messages
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from decimal import Decimal
@@ -21,6 +22,7 @@ from .forms import ConsumptionRecordForm, RedeemPointsForm
 # 匯入 Google Sheets 同步及資料清洗輔助函式
 from .google_sheets import fetch_google_sheets_data, safe_strip, safe_decimal
 
+
 # -----------------------------------------
 # 1. 使用者註冊
 # -----------------------------------------
@@ -31,10 +33,12 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
+            messages.success(request, "註冊成功！")
             return redirect('home')
     else:
         form = UserCreationForm()
     return render(request, 'members/register.html', {'form': form})
+
 
 # -----------------------------------------
 # 2. 使用者登入
@@ -51,6 +55,7 @@ def login_view(request):
         form = AuthenticationForm()
     return render(request, 'members/login.html', {'form': form})
 
+
 # -----------------------------------------
 # 3. 使用者登出
 # -----------------------------------------
@@ -59,6 +64,7 @@ def logout_view(request):
     logout(request)
     return redirect('login')
 
+
 # -----------------------------------------
 # 4. 會員首頁
 # -----------------------------------------
@@ -66,6 +72,7 @@ def logout_view(request):
 def home_view(request):
     """ 會員首頁 """
     return render(request, 'members/home.html')
+
 
 # -----------------------------------------
 # 5. 會員資料顯示
@@ -78,10 +85,12 @@ def profile_view(request):
     """
     records = request.user.consumption_records.all().order_by('-sales_time')
     total_points = records.aggregate(total=Sum('reward_points'))['total'] or 0
+    
     return render(request, 'members/profile.html', {
         'records': records,
         'total_points': total_points
     })
+
 
 # -----------------------------------------
 # 6. 新增消費紀錄
@@ -100,6 +109,7 @@ def add_consumption_record(request):
         form = ConsumptionRecordForm()
     return render(request, 'members/add_consumption_record.html', {'form': form})
 
+
 # -----------------------------------------
 # 7. 會員資料編輯
 # -----------------------------------------
@@ -114,6 +124,7 @@ def profile_edit_view(request):
     else:
         form = UserChangeForm(instance=request.user)
     return render(request, 'members/profile_edit.html', {'form': form})
+
 
 # -----------------------------------------
 # 8. 超級管理者後台
@@ -130,6 +141,7 @@ def super_admin_dashboard(request):
         'message': message,
         'members': members
     })
+
 
 # -----------------------------------------
 # 9. 超級管理者登入 / 登出
@@ -149,11 +161,13 @@ def super_admin_login_view(request):
         form = AuthenticationForm()
     return render(request, 'members/super_admin_login.html', {'form': form})
 
+
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_logout_view(request):
     """ 超級管理者登出 """
     logout(request)
     return redirect('super_admin_login')
+
 
 # -----------------------------------------
 # 10. 積分兌換
@@ -184,6 +198,7 @@ def redeem_points_view(request):
         'available_points': available_points,
         'message': message
     })
+
 
 # -----------------------------------------
 # 11. 手動同步 Google Sheets
@@ -216,7 +231,7 @@ def update_from_google_sheets(request):
             # 取得會員對象
             user = User.objects.get(email=email)
 
-            # 嘗試解析銷售時間，使用 django.utils.dateparse.parse_datetime
+            # 嘗試解析銷售時間，若失敗則使用當前時間
             parsed_time = parse_datetime(sales_time_str)
             if parsed_time is None:
                 sales_time = timezone.now()
