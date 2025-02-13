@@ -18,6 +18,9 @@ import re
 from datetime import datetime
 from django.core.paginator import Paginator
 from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
+from django.contrib import messages
 
 
 from .forms import (
@@ -71,16 +74,20 @@ def parse_sales_time(sales_time_str):
 
 # 1. 使用者註冊
 def register_view(request):
+    success_message = None  # 用來儲存成功訊息
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
             login(request, user)
-            messages.success(request, "註冊成功！")
-            return redirect('home')
+            success_message = "恭喜註冊成功囉！"
     else:
         form = UserCreationForm()
-    return render(request, 'members/register.html', {'form': form})
+
+    return render(request, 'members/register.html', {
+        'form': form,
+        'success_message': success_message
+    })
 
 # 2. 使用者登入
 def login_view(request):

@@ -4,6 +4,12 @@
 
 {% block content %}
     <h2>會員註冊</h2>
+
+    <!-- 若成功訊息存在，就顯示提示 -->
+    {% if success_message %}
+      <div class="alert alert-success">{{ success_message }}</div>
+    {% endif %}
+
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}
