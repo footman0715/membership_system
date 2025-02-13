@@ -17,7 +17,7 @@ import openpyxl
 import re
 from datetime import datetime
 from django.core.paginator import Paginator
-
+from .forms import ConsumptionRecordForm, RedeemPointsForm, ProfileEditForm
 
 # 匯入本 App 的模型與表單
 from .models import ConsumptionRecord, RedemptionRecord, GoogleSheetsSyncLog
@@ -197,16 +197,16 @@ def add_consumption_record(request):
 # -----------------------------------------
 @login_required
 def profile_edit_view(request):
-    """ 編輯會員資料 """
+    """ 編輯會員資料（移除 is_staff, is_superuser, is_active 三個欄位） """
     if request.method == 'POST':
-        form = UserChangeForm(request.POST, instance=request.user)
+        form = ProfileEditForm(request.POST, instance=request.user)
         if form.is_valid():
             form.save()
-            return redirect('profile')
+            return redirect('profile')  # 成功後轉到顯示會員資料的頁面
     else:
-        form = UserChangeForm(instance=request.user)
-    return render(request, 'members/profile_edit.html', {'form': form})
+        form = ProfileEditForm(instance=request.user)
 
+    return render(request, 'members/profile_edit.html', {'form': form})
 
 # -----------------------------------------
 # 8. 超級管理者後台

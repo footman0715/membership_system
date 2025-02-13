@@ -1,5 +1,7 @@
 from django import forms
 from .models import ConsumptionRecord, RedemptionRecord
+from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth.models import User
 
 # ================================
 # 消費紀錄表單 (新增消費)
@@ -24,3 +26,12 @@ class RedeemPointsForm(forms.ModelForm):
 # ================================
 class ExcelUploadForm(forms.Form):
     file = forms.FileField(label="上傳 Excel 檔案", help_text="請選擇 .xlsx 或 .xls 格式的文件")
+# ================================
+# 定義會員編輯資料只有姓名EMAIL
+# ================================
+
+class ProfileEditForm(UserChangeForm):
+    class Meta:
+        model = User
+        # 只顯示想要的欄位
+        fields = ['username', 'first_name', 'last_name', 'email']
