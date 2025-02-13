@@ -224,7 +224,11 @@ def update_from_google_sheets(request):
     for row in records:
         try:
             email = safe_strip(row.get("會員 Email", ""))
-            amount = safe_decimal(row.get("消費金額(元)", "0").replace(",", ""))
+            # 取得消費金額並確保先轉為字串，再呼叫 replace 以去除逗號
+            raw_amount = row.get("消費金額(元)", "0")
+            raw_amount = str(raw_amount)  # 確保是字串
+            raw_amount = raw_amount.replace(",", "")
+            amount = safe_decimal(raw_amount)
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
             sales_time_str = safe_strip(row.get("銷售時間", ""))
 
