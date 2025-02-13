@@ -14,6 +14,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from decimal import Decimal
 import openpyxl
+import re
+from datetime import datetime
 
 # 匯入本 App 的模型與表單
 from .models import ConsumptionRecord, RedemptionRecord, GoogleSheetsSyncLog
@@ -21,6 +23,52 @@ from .forms import ConsumptionRecordForm, RedeemPointsForm
 
 # 匯入 Google Sheets 同步及資料清洗輔助函式
 from .google_sheets import fetch_google_sheets_data, safe_strip, safe_decimal
+
+
+def parse_sales_time(sales_time_str):
+    """
+    彈性解析銷售時間字串，支援：
+      1. Django parse_datetime() (ISO 格式等)
+      2. 多個 strptime 格式 (含 YYYY/MM/DD、YYYY/MM/DD HH:MM、YYYY-MM-DD ...)
+      3. 若都失敗則返回 timezone.now()
+    """
+    # 先嘗試 parse_datetime()，能處理 ISO-8601 形式
+    dt = parse_datetime(sales_time_str)
+    if dt is not None:
+        return dt
+
+    # 若 parse_datetime() 失敗，嘗試多個常見格式
+    possible_formats = [
+        "%Y/%m/%d %H:%M:%S",
+        "%Y/%m/%d %H:%M",
+        "%Y/%m/%d",        # 專門處理像 2025/2/10
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d"
+    ]
+
+    for fmt in possible_formats:
+        try:
+            dt_obj = datetime.strptime(sales_time_str, fmt)
+            # 設定時區
+            dt_obj_aware = timezone.make_aware(dt_obj, timezone.get_current_timezone())
+            return dt_obj_aware
+        except ValueError:
+            pass
+
+    # 若以上都失敗，最後嘗試手動匹配 YYYY/m/d 不含前綴零的情況
+    match = re.match(r'^(\d{4})/(\d{1,2})/(\d{1,2})$', sales_time_str.strip())
+    if match:
+        y, m, d = match.groups()
+        try:
+            dt_obj = datetime(int(y), int(m), int(d))
+            dt_obj_aware = timezone.make_aware(dt_obj, timezone.get_current_timezone())
+            return dt_obj_aware
+        except ValueError:
+            pass
+
+    # 全部失敗，回傳現在時間
+    return timezone.now()
 
 
 # -----------------------------------------
@@ -85,7 +133,7 @@ def profile_view(request):
     """
     records = request.user.consumption_records.all().order_by('-sales_time')
     total_points = records.aggregate(total=Sum('reward_points'))['total'] or 0
-    
+
     return render(request, 'members/profile.html', {
         'records': records,
         'total_points': total_points
@@ -161,7 +209,6 @@ def super_admin_login_view(request):
         form = AuthenticationForm()
     return render(request, 'members/super_admin_login.html', {'form': form})
 
-
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_logout_view(request):
     """ 超級管理者登出 """
@@ -207,13 +254,14 @@ def redeem_points_view(request):
 def update_from_google_sheets(request):
     """
     從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)
-    
+
     1. 取得資料並刪除現有的消費紀錄。
     2. 對每筆記錄使用 safe_strip 與 safe_decimal 清洗資料。
-    3. 嘗試解析「銷售時間」欄位，依次嘗試使用 parse_datetime、"%Y-%m-%d %H:%M:%S" 與 "%Y-%m-%d %H:%M" 格式，
-       若均失敗則使用當前時間。
+    3. 呼叫 parse_sales_time() 來彈性解析「銷售時間」欄位，
+       包含 YYYY/MM/DD、YYYY-mm-dd 等常見格式，
+       若都失敗則使用當前時間。
     4. 建立新的 ConsumptionRecord 紀錄。
-    5. 若找不到對應會員或發生其它例外，將錯誤訊息累加至 message 字串。
+    5. 若找不到對應會員或發生其它例外，將錯誤訊息累加至 message。
     """
     records = fetch_google_sheets_data()
     message = "✅ Google Sheets 同步完成！\n"
@@ -224,30 +272,19 @@ def update_from_google_sheets(request):
     for row in records:
         try:
             email = safe_strip(row.get("會員 Email", ""))
-            # 將「消費金額(元)」先轉為字串並去除逗號，再轉換為 Decimal
+            # 先將金額轉為字串並去除逗號，再轉換為 Decimal
             raw_amount = safe_strip(row.get("消費金額(元)", "0"))
             raw_amount = raw_amount.replace(",", "")
             amount = safe_decimal(raw_amount)
+
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
             sales_time_str = safe_strip(row.get("銷售時間", ""))
 
-            # 取得會員對象
+            # 取得會員
             user = User.objects.get(email=email)
 
-            # 嘗試解析銷售時間
-            parsed_time = parse_datetime(sales_time_str)
-            if parsed_time is None:
-                try:
-                    # 嘗試格式: 2025-02-24 15:30:00
-                    sales_time = timezone.datetime.strptime(sales_time_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    try:
-                        # 嘗試格式: 2025-02-24 15:30
-                        sales_time = timezone.datetime.strptime(sales_time_str, "%Y-%m-%d %H:%M")
-                    except ValueError:
-                        sales_time = timezone.now()
-            else:
-                sales_time = parsed_time
+            # 使用自訂函式 parse_sales_time() 解析日期
+            sales_time = parse_sales_time(sales_time_str)
 
             # 建立消費紀錄
             ConsumptionRecord.objects.create(
@@ -256,6 +293,7 @@ def update_from_google_sheets(request):
                 sold_item=sold_item,
                 sales_time=sales_time
             )
+
         except User.DoesNotExist:
             message += f"❌ 找不到會員 Email: {email}，該筆紀錄未新增。\n"
         except Exception as e:
