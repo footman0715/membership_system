@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}編輯使用者 - {{ user_obj.username }}{% endblock %}
+
+{% block content %}
+<h2>編輯使用者 - {{ user_obj.username }}</h2>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">儲存變更</button>
+</form>
+
+<p>
+    <a href="{% url 'super_admin_dashboard' %}" class="btn btn-link">返回超級管理者後台</a>
+</p>
+{% endblock %}

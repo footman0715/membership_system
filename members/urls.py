@@ -16,6 +16,8 @@ urlpatterns = [
     path('super_admin/login/', views.super_admin_login_view, name='super_admin_login'),
     path('super_admin/logout/', views.super_admin_logout_view, name='super_admin_logout'),
     path('super_admin/sync_google_sheets/', views.update_from_google_sheets, name='sync_google_sheets'),
+    # ★ 新增路由：編輯指定使用者
+    path('super_admin/edit_user/<int:user_id>/', views.super_admin_edit_user, name='super_admin_edit_user'),
 
     # 積分相關功能
     path('redeem_points/', views.redeem_points_view, name='redeem_points'),
