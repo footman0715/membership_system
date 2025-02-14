@@ -8,6 +8,13 @@
 <!-- 顯示累積回饋積分 -->
 <h3>累積回饋積分：{{ total_points }}</h3>
 
+<!-- 若有一個月內到期的積分，顯示提示 -->
+{% if points_expiring_soon and points_expiring_soon > 0 %}
+  <p class="text-danger">
+    注意：您在未來 30 天內將有 {{ points_expiring_soon }} 積分即將到期，請盡快使用！
+  </p>
+{% endif %}
+
 <!-- 使用積分按鈕 -->
 <p>
     <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
@@ -33,7 +40,6 @@
 <table class="table table-striped">
     <thead>
         <tr>
-            <!-- 移除 <th>銷售品項</th> -->
             <th>消費金額 (元)</th>
             <th>回饋積分</th>
             <th>銷售時間</th>
@@ -43,7 +49,6 @@
         {% if is_paginated %}
             {% for record in page_obj.object_list %}
             <tr>
-                <!-- 移除 <td>{{ record.sold_item }}</td> -->
                 <td>{{ record.amount }}</td>
                 <td>{{ record.reward_points }}</td>
                 <td>{{ record.sales_time|date:"Y-m-d" }}</td>
@@ -56,7 +61,6 @@
         {% else %}
             {% for record in records %}
             <tr>
-                <!-- 移除 <td>{{ record.sold_item }}</td> -->
                 <td>{{ record.amount }}</td>
                 <td>{{ record.reward_points }}</td>
                 <td>{{ record.sales_time|date:"Y-m-d" }}</td>
@@ -100,8 +104,7 @@
     </p>
 {% endif %}
 
-<!-- 兌換紀錄或其他區塊 (若有) -->
-<!-- ... -->
+<!-- 如果有顯示使用紀錄 (歷史兌換) 也可加在此處 -->
 
 <p>
     <a href="{% url 'profile_edit' %}" class="btn btn-secondary">編輯會員資料</a>
