@@ -69,6 +69,12 @@
 <p>{{ message }}</p>
 {% endif %}
 
+<!-- 同步會員資料 -->
+<form method="post" action="{% url 'sync_users_to_google_sheets' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">同步會員資料到 Google Sheets</button>
+</form>
+
 <!-- 超級管理者登出按鈕 -->
 <form method="post" action="{% url 'logout' %}">
     {% csrf_token %}

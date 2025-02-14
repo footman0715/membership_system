@@ -148,8 +148,8 @@ def profile_view(request):
             'page_obj': page_obj,
             'search_query': search_query,
             'total_points': total_points,
-            'redemption_records': redemption_records,      # ★ 確保傳遞
-            'points_expiring_soon': points_expiring_soon,  # ★ 確保傳遞
+            'redemption_records': redemption_records,      # 傳遞使用紀錄
+            'points_expiring_soon': points_expiring_soon,  # 傳遞到期積分
         })
     else:
         # 預設只顯示最近 10 筆
@@ -159,8 +159,8 @@ def profile_view(request):
             'records': records,
             'search_query': search_query,
             'total_points': total_points,
-            'redemption_records': redemption_records,      # ★ 確保傳遞
-            'points_expiring_soon': points_expiring_soon,  # ★ 確保傳遞
+            'redemption_records': redemption_records,      # 傳遞使用紀錄
+            'points_expiring_soon': points_expiring_soon,  # 傳遞到期積分
         })
 
 # 6. 新增消費紀錄
@@ -321,3 +321,58 @@ def update_from_google_sheets(request):
             message += f"⚠️ 發生錯誤: {e}\n"
 
     return message
+
+
+# ★ 新增：將會員資料同步到 Google Sheets (示範)
+@user_passes_test(lambda u: u.is_superuser)
+def sync_users_to_google_sheets(request):
+    """
+    將所有會員 (User) 資料同步到 Google Sheets 的某個工作表 (Worksheet)
+    """
+    import os
+    import json
+    import gspread
+    from google.oauth2.service_account import Credentials
+
+    message = ""
+    try:
+        # 從環境變數取得試算表ID
+        SPREADSHEET_ID = os.getenv("1DsDd1YFcUNX6mtSfoLVDfStSNT9GTGcLIhhRS5eH2Ss", "你的試算表ID")
+        WORKSHEET_NAME = "MemberList"  # 你想放會員資料的分頁名稱
+
+        # 取得服務帳戶憑證
+        creds_info = os.getenv("GOOGLE_CREDENTIALS", "")
+        creds_dict = json.loads(creds_info)
+        creds = Credentials.from_service_account_info(creds_dict)
+        client = gspread.authorize(creds)
+
+        # 開啟試算表 & 工作表
+        sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
+
+        # 取得會員列表
+        members = User.objects.all().order_by('username')
+
+        # 準備要寫入的資料 (第一列放標題)
+        data = [
+            ["使用者名稱", "Email", "是否超級管理者", "建立日期"]
+        ]
+        for m in members:
+            data.append([
+                m.username,
+                m.email,
+                "是" if m.is_superuser else "否",
+                m.date_joined.strftime("%Y-%m-%d %H:%M:%S")
+            ])
+
+        # 清除原先工作表資料，或直接覆蓋
+        sheet.clear()
+
+        # 從 A1 開始寫入 data
+        sheet.update("A1", data)
+
+        message = "✅ 已將會員資料同步到 Google Sheets"
+    except Exception as e:
+        message = f"❌ 同步會員資料失敗：{e}"
+
+    messages.info(request, message)
+    return redirect('super_admin_dashboard')
