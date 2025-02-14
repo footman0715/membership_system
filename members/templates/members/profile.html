@@ -8,26 +8,19 @@
 <!-- 顯示累積回饋積分 -->
 <h3>累積回饋積分：{{ total_points }}</h3>
 
-<!-- 若有一個月內到期的積分，顯示提示 -->
-{% if points_expiring_soon and points_expiring_soon > 0 %}
-  <p class="text-danger">
-    注意：您在未來 30 天內將有 {{ points_expiring_soon }} 積分即將到期，請盡快使用！
-  </p>
-{% endif %}
-
-<!-- 加入使用積分按鈕 -->
+<!-- 使用積分按鈕 -->
 <p>
     <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
 </p>
 
-<!-- 搜尋表單 -->
+<!-- 搜尋表單：提示改成「搜尋日期 (YYYY-MM-DD)」 -->
 <form method="get" action="">
     <div class="row mb-3">
         <div class="col-auto">
             {% if is_paginated %}
                 <input type="hidden" name="show_more" value="1">
             {% endif %}
-            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="搜尋銷售品項">
+            <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="搜尋日期 (YYYY-MM-DD)">
         </div>
         <div class="col-auto">
             <button type="submit" class="btn btn-primary">搜尋</button>
@@ -35,12 +28,12 @@
     </div>
 </form>
 
-<!-- 消費紀錄表格 -->
+<!-- 消費紀錄表格：移除「銷售品項」欄位 -->
 <h3>消費紀錄</h3>
 <table class="table table-striped">
     <thead>
         <tr>
-            <th>銷售品項</th>
+            <!-- 移除 <th>銷售品項</th> -->
             <th>消費金額 (元)</th>
             <th>回饋積分</th>
             <th>銷售時間</th>
@@ -48,38 +41,36 @@
     </thead>
     <tbody>
         {% if is_paginated %}
-            <!-- 分頁模式 -->
             {% for record in page_obj.object_list %}
             <tr>
-                <td>{{ record.sold_item }}</td>
+                <!-- 移除 <td>{{ record.sold_item }}</td> -->
                 <td>{{ record.amount }}</td>
                 <td>{{ record.reward_points }}</td>
                 <td>{{ record.sales_time|date:"Y-m-d" }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="4">目前無消費紀錄</td>
+                <td colspan="3">目前無消費紀錄</td>
             </tr>
             {% endfor %}
         {% else %}
-            <!-- 預設只顯示最近 10 筆 -->
             {% for record in records %}
             <tr>
-                <td>{{ record.sold_item }}</td>
+                <!-- 移除 <td>{{ record.sold_item }}</td> -->
                 <td>{{ record.amount }}</td>
                 <td>{{ record.reward_points }}</td>
                 <td>{{ record.sales_time|date:"Y-m-d" }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="4">目前無消費紀錄</td>
+                <td colspan="3">目前無消費紀錄</td>
             </tr>
             {% endfor %}
         {% endif %}
     </tbody>
 </table>
 
-<!-- 分頁 or 顯示更多 -->
+<!-- 分頁或顯示更多 (保留原邏輯) -->
 {% if is_paginated %}
     <div class="d-flex justify-content-between mb-3">
         {% if page_obj.has_previous %}
@@ -109,32 +100,9 @@
     </p>
 {% endif %}
 
-<!-- 使用紀錄表格 (何時使用積分) -->
-<h3>使用紀錄（歷史兌換）</h3>
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>兌換品項</th>
-            <th>使用積分</th>
-            <th>兌換時間</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for rec in redemption_records %}
-        <tr>
-            <td>{{ rec.redeemed_item }}</td>
-            <td>{{ rec.points_used }}</td>
-            <td>{{ rec.redemption_time|date:"Y-m-d H:i" }}</td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="3">尚無使用紀錄</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<!-- 兌換紀錄或其他區塊 (若有) -->
+<!-- ... -->
 
-<!-- 其他操作按鈕 -->
 <p>
     <a href="{% url 'profile_edit' %}" class="btn btn-secondary">編輯會員資料</a>
 </p>
