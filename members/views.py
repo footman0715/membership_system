@@ -13,8 +13,8 @@ from django.contrib import messages
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 from decimal import Decimal
-import openpyxl
 import re
+import openpyxl
 from datetime import datetime, timedelta
 from django.core.paginator import Paginator
 
@@ -25,7 +25,7 @@ from .forms import (
     ExcelUploadForm
 )
 from .models import ConsumptionRecord, RedemptionRecord, GoogleSheetsSyncLog
-# ★ 你在 google_sheets.py 中已定義 fetch_google_sheets_data, safe_strip, safe_decimal
+# ★ google_sheets.py 中定義了 fetch_google_sheets_data, safe_strip, safe_decimal
 from .google_sheets import fetch_google_sheets_data, safe_strip, safe_decimal
 
 
@@ -70,9 +70,9 @@ def parse_sales_time(sales_time_str):
     return timezone.now()
 
 
-# -------------------------
+# -------------------------------------------------------
 # 1. 使用者註冊
-# -------------------------
+# -------------------------------------------------------
 def register_view(request):
     success_message = None
     if request.method == 'POST':
@@ -90,9 +90,9 @@ def register_view(request):
     })
 
 
-# -------------------------
+# -------------------------------------------------------
 # 2. 使用者登入
-# -------------------------
+# -------------------------------------------------------
 def login_view(request):
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -105,25 +105,25 @@ def login_view(request):
     return render(request, 'members/login.html', {'form': form})
 
 
-# -------------------------
+# -------------------------------------------------------
 # 3. 使用者登出
-# -------------------------
+# -------------------------------------------------------
 def logout_view(request):
     logout(request)
     return redirect('login')
 
 
-# -------------------------
+# -------------------------------------------------------
 # 4. 會員首頁
-# -------------------------
+# -------------------------------------------------------
 @login_required
 def home_view(request):
     return render(request, 'members/home.html')
 
 
-# -------------------------
+# -------------------------------------------------------
 # 5. 會員資料顯示 (profile_view)
-# -------------------------
+# -------------------------------------------------------
 @login_required
 def profile_view(request):
     """
@@ -184,9 +184,9 @@ def profile_view(request):
         })
 
 
-# -------------------------
+# -------------------------------------------------------
 # 6. 新增消費紀錄
-# -------------------------
+# -------------------------------------------------------
 @login_required
 def add_consumption_record(request):
     if request.method == 'POST':
@@ -201,9 +201,9 @@ def add_consumption_record(request):
     return render(request, 'members/add_consumption_record.html', {'form': form})
 
 
-# -------------------------
+# -------------------------------------------------------
 # 7. 會員資料編輯
-# -------------------------
+# -------------------------------------------------------
 @login_required
 def profile_edit_view(request):
     if request.method == 'POST':
@@ -216,9 +216,9 @@ def profile_edit_view(request):
     return render(request, 'members/profile_edit.html', {'form': form})
 
 
-# -------------------------
+# -------------------------------------------------------
 # 8. 超級管理者後台
-# -------------------------
+# -------------------------------------------------------
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_dashboard(request):
     """
@@ -236,7 +236,8 @@ def super_admin_dashboard(request):
 
         # (B) 手動同步 Google Sheets (匯入消費紀錄)
         elif 'sync_google_sheets' in request.POST:
-            message = update_from_google_sheets()
+            # 呼叫無需 request 的邏輯函式
+            message = update_from_google_sheets_logic()
 
     members = User.objects.all().order_by('username')
     return render(request, 'members/super_admin_dashboard.html', {
@@ -264,9 +265,9 @@ def super_admin_edit_user(request, user_id):
     })
 
 
-# -------------------------
+# -------------------------------------------------------
 # 9. 超級管理者登入 / 登出
-# -------------------------
+# -------------------------------------------------------
 def super_admin_login_view(request):
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -287,9 +288,9 @@ def super_admin_logout_view(request):
     return redirect('super_admin_login')
 
 
-# -------------------------
+# -------------------------------------------------------
 # 10. 積分兌換
-# -------------------------
+# -------------------------------------------------------
 @login_required
 def redeem_points_view(request):
     total_reward_points = request.user.consumption_records.aggregate(total=Sum('reward_points'))['total'] or 0
@@ -317,15 +318,14 @@ def redeem_points_view(request):
     })
 
 
-# -------------------------
-# 11. 手動同步 Google Sheets (抓消費紀錄)
-# -------------------------
-@user_passes_test(lambda u: u.is_superuser)
-def update_from_google_sheets():
+# -------------------------------------------------------
+# 11. 純邏輯：從 Google Sheets 取得資料 (抓消費紀錄)
+# -------------------------------------------------------
+def update_from_google_sheets_logic():
     """
+    純邏輯函式：不需要 request 或權限檢查，方便 management command 或其他地方呼叫。
     從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)。
     如果找不到唯一會員 (0 或多筆) 就跳過該筆 (視為非會員)。
-    不需要 request 參數 => 方便 management command 或其他地方呼叫。
     """
     records = fetch_google_sheets_data()
     message = "✅ Google Sheets 同步完成！\n"
@@ -342,11 +342,10 @@ def update_from_google_sheets():
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
             sales_time_str = safe_strip(row.get("銷售時間", ""))
 
-            # ★ 用 filter() 取代 get()，若非唯一就跳過
+            # 用 filter() 取代 get()，若非唯一就跳過
             matching_users = User.objects.filter(email=email)
             count = matching_users.count()
             if count == 1:
-                # 找到唯一會員 => 正常建立紀錄
                 user = matching_users.first()
                 sales_time = parse_sales_time(sales_time_str)
 
@@ -357,9 +356,7 @@ def update_from_google_sheets():
                     sales_time=sales_time
                 )
             else:
-                # count == 0 => 找不到會員
-                # count > 1 => 多筆會員
-                # 直接跳過 => 視為非會員，不建立紀錄
+                # 0 筆 or 多筆 => 視為非會員，不建立紀錄
                 message += f"⚠️ 非會員或多筆會員 Email: {email}，此筆未新增。\n"
 
         except Exception as e:
@@ -368,9 +365,23 @@ def update_from_google_sheets():
     return message
 
 
-# -------------------------
+# -------------------------------------------------------
+# ★ View 版本：若要在後台按按鈕同步 (檢查 superuser)
+# -------------------------------------------------------
+@user_passes_test(lambda u: u.is_superuser)
+def update_from_google_sheets_view(request):
+    """
+    若你在後台想透過 URL 觸發同步，可用這個 View。
+    需要檢查 superuser，然後呼叫邏輯函式。
+    """
+    msg = update_from_google_sheets_logic()
+    messages.info(request, msg)
+    return redirect('super_admin_dashboard')
+
+
+# -------------------------------------------------------
 # ★ 新增：將會員資料同步到 Google Sheets
-# -------------------------
+# -------------------------------------------------------
 @user_passes_test(lambda u: u.is_superuser)
 def sync_users_to_google_sheets(request):
     """
