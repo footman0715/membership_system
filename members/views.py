@@ -25,7 +25,9 @@ from .forms import (
     ExcelUploadForm
 )
 from .models import ConsumptionRecord, RedemptionRecord, GoogleSheetsSyncLog
+# ★ 你在 google_sheets.py 中已定義 fetch_google_sheets_data, safe_strip, safe_decimal
 from .google_sheets import fetch_google_sheets_data, safe_strip, safe_decimal
+
 
 def parse_sales_time(sales_time_str):
     dt = parse_datetime(sales_time_str)
@@ -61,7 +63,10 @@ def parse_sales_time(sales_time_str):
 
     return timezone.now()
 
+
+# -------------------------
 # 1. 使用者註冊
+# -------------------------
 def register_view(request):
     success_message = None
     if request.method == 'POST':
@@ -78,7 +83,10 @@ def register_view(request):
         'success_message': success_message
     })
 
+
+# -------------------------
 # 2. 使用者登入
+# -------------------------
 def login_view(request):
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -90,17 +98,26 @@ def login_view(request):
         form = AuthenticationForm()
     return render(request, 'members/login.html', {'form': form})
 
+
+# -------------------------
 # 3. 使用者登出
+# -------------------------
 def logout_view(request):
     logout(request)
     return redirect('login')
 
+
+# -------------------------
 # 4. 會員首頁
+# -------------------------
 @login_required
 def home_view(request):
     return render(request, 'members/home.html')
 
+
+# -------------------------
 # 5. 會員資料顯示 (profile_view)
+# -------------------------
 @login_required
 def profile_view(request):
     """
@@ -133,7 +150,7 @@ def profile_view(request):
         if date_obj:
             all_records = all_records.filter(sales_time__date=date_obj)
         else:
-            # 若解析失敗，則回傳空集合
+            # 若解析失敗 => 回傳空集合
             all_records = all_records.none()
 
     if show_more == '1':
@@ -160,7 +177,10 @@ def profile_view(request):
             'points_expiring_soon': points_expiring_soon,
         })
 
+
+# -------------------------
 # 6. 新增消費紀錄
+# -------------------------
 @login_required
 def add_consumption_record(request):
     if request.method == 'POST':
@@ -174,7 +194,10 @@ def add_consumption_record(request):
         form = ConsumptionRecordForm()
     return render(request, 'members/add_consumption_record.html', {'form': form})
 
-# 7. 會員資料編輯 (移除 is_staff, is_superuser, is_active)
+
+# -------------------------
+# 7. 會員資料編輯
+# -------------------------
 @login_required
 def profile_edit_view(request):
     if request.method == 'POST':
@@ -186,7 +209,10 @@ def profile_edit_view(request):
         form = ProfileEditForm(instance=request.user)
     return render(request, 'members/profile_edit.html', {'form': form})
 
+
+# -------------------------
 # 8. 超級管理者後台
+# -------------------------
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_dashboard(request):
     """
@@ -194,7 +220,7 @@ def super_admin_dashboard(request):
     """
     message = ""
     if request.method == 'POST':
-        # 批次更新超級管理者
+        # (A) 批次更新超級管理者
         if request.POST.get('action') == 'update_superusers':
             posted_ids = request.POST.getlist('superusers')
             User.objects.exclude(id=request.user.id).update(is_superuser=False)
@@ -202,7 +228,7 @@ def super_admin_dashboard(request):
                 User.objects.filter(id__in=posted_ids).update(is_superuser=True)
             message = "已更新超級管理者設定！"
 
-        # 手動同步 Google Sheets
+        # (B) 手動同步 Google Sheets (匯入消費紀錄)
         elif 'sync_google_sheets' in request.POST:
             message = update_from_google_sheets(request)
 
@@ -212,12 +238,10 @@ def super_admin_dashboard(request):
         'members': members
     })
 
+
 # ★ 新增：超級管理者編輯指定使用者
 @user_passes_test(lambda u: u.is_superuser)
 def super_admin_edit_user(request, user_id):
-    """
-    讓超級管理者編輯指定 user_id 的使用者資料 (排除 is_staff, is_superuser, is_active)
-    """
     user_obj = get_object_or_404(User, pk=user_id)
     if request.method == 'POST':
         form = ProfileEditForm(request.POST, instance=user_obj)
@@ -233,7 +257,10 @@ def super_admin_edit_user(request, user_id):
         'user_obj': user_obj
     })
 
-# 9. 超級管理者登入
+
+# -------------------------
+# 9. 超級管理者登入 / 登出
+# -------------------------
 def super_admin_login_view(request):
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -253,7 +280,10 @@ def super_admin_logout_view(request):
     logout(request)
     return redirect('super_admin_login')
 
+
+# -------------------------
 # 10. 積分兌換
+# -------------------------
 @login_required
 def redeem_points_view(request):
     total_reward_points = request.user.consumption_records.aggregate(total=Sum('reward_points'))['total'] or 0
@@ -280,11 +310,15 @@ def redeem_points_view(request):
         'message': message
     })
 
-# 11. 手動同步 Google Sheets
+
+# -------------------------
+# 11. 手動同步 Google Sheets (抓消費紀錄)
+# -------------------------
 @user_passes_test(lambda u: u.is_superuser)
 def update_from_google_sheets(request):
     """
-    從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)
+    從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)。
+    如果找不到唯一會員 (0 或多筆) 就跳過該筆 (視為非會員)。
     """
     records = fetch_google_sheets_data()
     message = "✅ Google Sheets 同步完成！\n"
@@ -295,31 +329,41 @@ def update_from_google_sheets(request):
     for row in records:
         try:
             email = safe_strip(row.get("會員 Email", ""))
-            raw_amount = safe_strip(row.get("消費金額(元)", "0"))
-            raw_amount = raw_amount.replace(",", "")
+            raw_amount = safe_strip(row.get("消費金額(元)", "0")).replace(",", "")
             amount = safe_decimal(raw_amount)
 
             sold_item = safe_strip(row.get("銷售品項", "未知品項"))
             sales_time_str = safe_strip(row.get("銷售時間", ""))
 
-            user = User.objects.get(email=email)
-            sales_time = parse_sales_time(sales_time_str)
+            # ★ 用 filter() 取代 get()，若非唯一就跳過
+            matching_users = User.objects.filter(email=email)
+            count = matching_users.count()
+            if count == 1:
+                # 找到唯一會員 => 正常建立紀錄
+                user = matching_users.first()
+                sales_time = parse_sales_time(sales_time_str)
 
-            ConsumptionRecord.objects.create(
-                user=user,
-                amount=amount,
-                sold_item=sold_item,
-                sales_time=sales_time
-            )
+                ConsumptionRecord.objects.create(
+                    user=user,
+                    amount=amount,
+                    sold_item=sold_item,
+                    sales_time=sales_time
+                )
+            else:
+                # count == 0 => 找不到會員
+                # count > 1 => 多筆會員
+                # 直接跳過 => 視為非會員，不建立紀錄
+                message += f"⚠️ 非會員或多筆會員 Email: {email}，此筆未新增。\n"
 
-        except User.DoesNotExist:
-            message += f"❌ 找不到會員 Email: {email}，該筆紀錄未新增。\n"
         except Exception as e:
             message += f"⚠️ 發生錯誤: {e}\n"
 
     return message
 
-# ★ 新增：將會員資料同步到 Google Sheets (示範)
+
+# -------------------------
+# ★ 新增：將會員資料同步到 Google Sheets
+# -------------------------
 @user_passes_test(lambda u: u.is_superuser)
 def sync_users_to_google_sheets(request):
     """
@@ -329,34 +373,24 @@ def sync_users_to_google_sheets(request):
     import json
     import gspread
     from google.oauth2.service_account import Credentials
-    from django.contrib import messages
 
     message = ""
     try:
-        # ★ 改為正確讀取 SPREADSHEET_ID
         SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "你的試算表ID")
-        WORKSHEET_NAME = "MemberList"  # 你想放會員資料的分頁名稱
+        WORKSHEET_NAME = "MemberList"
 
-        # 指定正確 Scopes，避免 invalid_scope
         SCOPES = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-
         creds_info = os.getenv("GOOGLE_CREDENTIALS", "")
         creds_dict = json.loads(creds_info)
-
-        # 使用 service_account_info + scopes
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
 
-        # 開啟試算表 & 工作表
         sheet = client.open_by_key(SPREADSHEET_ID).worksheet(WORKSHEET_NAME)
 
-        # 取得會員列表
         members = User.objects.all().order_by('username')
-
-        # 準備要寫入的資料 (第一列放標題)
         data = [
             ["使用者名稱", "Email", "是否超級管理者", "建立日期"]
         ]
@@ -368,10 +402,7 @@ def sync_users_to_google_sheets(request):
                 m.date_joined.strftime("%Y-%m-%d %H:%M:%S")
             ])
 
-        # 清除原先工作表資料，或直接覆蓋
         sheet.clear()
-
-        # 從 A1 開始寫入 data
         sheet.update("A1", data)
 
         message = "✅ 已將會員資料同步到 Google Sheets"
