@@ -160,7 +160,6 @@ def profile_view(request):
             'search_query': search_query,
             'total_points': total_points,
         })
-    else:
         # 預設只顯示最近 10 筆
         records = all_records[:10]
         return render(request, 'members/profile.html', {
