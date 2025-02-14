@@ -30,6 +30,12 @@ from .google_sheets import fetch_google_sheets_data, safe_strip, safe_decimal
 
 
 def parse_sales_time(sales_time_str):
+    """
+    彈性解析銷售時間字串，支援：
+      1. Django parse_datetime() (ISO 格式等)
+      2. 多個 strptime 格式 (含 YYYY/MM/DD、YYYY/MM/DD HH:MM、YYYY-MM-DD ...)
+      3. 若都失敗則返回 timezone.now()
+    """
     dt = parse_datetime(sales_time_str)
     if dt is not None:
         return dt
@@ -230,7 +236,7 @@ def super_admin_dashboard(request):
 
         # (B) 手動同步 Google Sheets (匯入消費紀錄)
         elif 'sync_google_sheets' in request.POST:
-            message = update_from_google_sheets(request)
+            message = update_from_google_sheets()
 
     members = User.objects.all().order_by('username')
     return render(request, 'members/super_admin_dashboard.html', {
@@ -315,10 +321,11 @@ def redeem_points_view(request):
 # 11. 手動同步 Google Sheets (抓消費紀錄)
 # -------------------------
 @user_passes_test(lambda u: u.is_superuser)
-def update_from_google_sheets(request):
+def update_from_google_sheets():
     """
     從 Google Sheets 取得資料並同步到 Django 資料庫 (與 Sheet9 保持一致)。
     如果找不到唯一會員 (0 或多筆) 就跳過該筆 (視為非會員)。
+    不需要 request 參數 => 方便 management command 或其他地方呼叫。
     """
     records = fetch_google_sheets_data()
     message = "✅ Google Sheets 同步完成！\n"
