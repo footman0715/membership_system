@@ -11,14 +11,12 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_datetime, parse_date
 from decimal import Decimal
 import openpyxl
 import re
 from datetime import datetime, timedelta
 from django.core.paginator import Paginator
-from django.utils.dateparse import parse_date
-from datetime import timedelta
 
 from .forms import (
     ConsumptionRecordForm,
@@ -109,18 +107,17 @@ def profile_view(request):
     顯示會員的消費紀錄(搜尋、分頁)、
     顯示累積積分、顯示一個月內到期的積分、
     顯示歷史使用紀錄(何時使用積分)。
-    移除銷售品項的搜尋，改為日期搜尋
+    移除銷售品項的搜尋，改為日期搜尋 (YYYY-MM-DD)
     """
     # 搜尋 & 分頁參數
     search_query = request.GET.get('q', '').strip()
     show_more = request.GET.get('show_more', '0')
     page_number = request.GET.get('page', 1)
 
-    # 取得所有消費紀錄
+    # 取得所有消費紀錄 (依銷售時間排序)
     all_records = request.user.consumption_records.all().order_by('-sales_time')
     # 累積回饋積分
     total_points = all_records.aggregate(total=Sum('reward_points'))['total'] or 0
-
 
     # 取得使用紀錄(何時使用積分)
     redemption_records = request.user.redemption_records.all().order_by('-redemption_time')
@@ -131,19 +128,19 @@ def profile_view(request):
     expiring_records = all_records.filter(expiry_date__range=(now, soon))
     points_expiring_soon = expiring_records.aggregate(total=Sum('reward_points'))['total'] or 0
 
-   # ★ 日期搜尋
+    # 日期搜尋 (YYYY-MM-DD)
     if search_query:
-        # 嘗試解析使用者輸入的日期字串 (YYYY-MM-DD)
-        date_obj = parse_date(search_query)
+        date_obj = parse_date(search_query)  # 嘗試解析字串成日期物件
         if date_obj:
             # 篩選 sales_time__date = date_obj
             all_records = all_records.filter(sales_time__date=date_obj)
         else:
-            # 若解析失敗，可以視需求決定回傳空集合或不篩選
+            # 若解析失敗，則回傳空集合 (或可改為不篩選)
             all_records = all_records.none()
 
-     # 分頁或顯示更多邏輯
+    # 分頁或顯示更多邏輯
     if show_more == '1':
+        # 分頁模式：每頁顯示 20 筆
         paginator = Paginator(all_records, 20)
         page_obj = paginator.get_page(page_number)
         return render(request, 'members/profile.html', {
@@ -151,15 +148,10 @@ def profile_view(request):
             'page_obj': page_obj,
             'search_query': search_query,
             'total_points': total_points,
+            'redemption_records': redemption_records,      # ★ 確保傳遞
+            'points_expiring_soon': points_expiring_soon,  # ★ 確保傳遞
         })
     else:
-        records = all_records[:10]
-        return render(request, 'members/profile.html', {
-            'is_paginated': False,
-            'records': records,
-            'search_query': search_query,
-            'total_points': total_points,
-        })
         # 預設只顯示最近 10 筆
         records = all_records[:10]
         return render(request, 'members/profile.html', {
@@ -167,8 +159,8 @@ def profile_view(request):
             'records': records,
             'search_query': search_query,
             'total_points': total_points,
-            'redemption_records': redemption_records,
-            'points_expiring_soon': points_expiring_soon,
+            'redemption_records': redemption_records,      # ★ 確保傳遞
+            'points_expiring_soon': points_expiring_soon,  # ★ 確保傳遞
         })
 
 # 6. 新增消費紀錄
