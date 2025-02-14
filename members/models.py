@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from decimal import Decimal
+from datetime import timedelta
 
 # ================================
 # 會員消費紀錄 (ConsumptionRecord)
@@ -16,12 +17,21 @@ class ConsumptionRecord(models.Model):
     sold_item = models.CharField(max_length=200, help_text="銷售品項")
     sales_time = models.DateTimeField(default=timezone.now, help_text="銷售時間")
     reward_points = models.IntegerField(default=0, help_text="回饋積分")
+    # ★ 新增積分到期時間 (一年後)
+    expiry_date = models.DateTimeField(null=True, blank=True, help_text="積分到期時間")
 
     def __str__(self):
         return f"{self.user.username} - {self.amount} 元 - {self.sold_item} - {self.sales_time:%Y-%m-%d %H:%M} - {self.reward_points} 積分"
 
     def save(self, *args, **kwargs):
-        self.reward_points = int(self.amount * Decimal('0.1'))  # 10% 作為回饋積分
+        # 1. 如果尚未設定 expiry_date，預設為 sales_time + 365 天
+        if not self.expiry_date:
+            if not self.sales_time:
+                self.sales_time = timezone.now()
+            self.expiry_date = self.sales_time + timedelta(days=365)
+
+        # 2. reward_points = 消費金額的 10%
+        self.reward_points = int(self.amount * Decimal('0.1'))
         super().save(*args, **kwargs)
 
 

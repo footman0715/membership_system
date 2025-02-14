@@ -8,6 +8,13 @@
 <!-- 顯示累積回饋積分 -->
 <h3>累積回饋積分：{{ total_points }}</h3>
 
+<!-- 若有一個月內到期的積分，顯示提示 -->
+{% if points_expiring_soon and points_expiring_soon > 0 %}
+  <p class="text-danger">
+    注意：您在未來 30 天內將有 {{ points_expiring_soon }} 積分即將到期，請盡快使用！
+  </p>
+{% endif %}
+
 <!-- 加入使用積分按鈕 -->
 <p>
     <a href="{% url 'redeem_points' %}" class="btn btn-warning">使用積分</a>
@@ -17,7 +24,6 @@
 <form method="get" action="">
     <div class="row mb-3">
         <div class="col-auto">
-            <!-- 保留 show_more=1 時，確保分頁時仍帶此參數 -->
             {% if is_paginated %}
                 <input type="hidden" name="show_more" value="1">
             {% endif %}
@@ -75,7 +81,6 @@
 
 <!-- 分頁 or 顯示更多 -->
 {% if is_paginated %}
-    <!-- 分頁導覽 -->
     <div class="d-flex justify-content-between mb-3">
         {% if page_obj.has_previous %}
             <a class="btn btn-secondary"
@@ -96,7 +101,6 @@
         {% endif %}
     </div>
 {% else %}
-    <!-- 顯示更多按鈕 -->
     <p>
         <a class="btn btn-secondary"
            href="?show_more=1{% if search_query %}&q={{ search_query }}{% endif %}">
@@ -104,6 +108,31 @@
         </a>
     </p>
 {% endif %}
+
+<!-- 使用紀錄表格 (何時使用積分) -->
+<h3>使用紀錄（歷史兌換）</h3>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>兌換品項</th>
+            <th>使用積分</th>
+            <th>兌換時間</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for rec in redemption_records %}
+        <tr>
+            <td>{{ rec.redeemed_item }}</td>
+            <td>{{ rec.points_used }}</td>
+            <td>{{ rec.redemption_time|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="3">尚無使用紀錄</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
 <!-- 其他操作按鈕 -->
 <p>
