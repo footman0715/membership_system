@@ -109,7 +109,6 @@ def profile_view(request):
     顯示歷史使用紀錄(何時使用積分)。
     移除銷售品項的搜尋，改為日期搜尋 (YYYY-MM-DD)
     """
-    # 搜尋 & 分頁參數
     search_query = request.GET.get('q', '').strip()
     show_more = request.GET.get('show_more', '0')
     page_number = request.GET.get('page', 1)
@@ -130,15 +129,13 @@ def profile_view(request):
 
     # 日期搜尋 (YYYY-MM-DD)
     if search_query:
-        date_obj = parse_date(search_query)  # 嘗試解析字串成日期物件
+        date_obj = parse_date(search_query)
         if date_obj:
-            # 篩選 sales_time__date = date_obj
             all_records = all_records.filter(sales_time__date=date_obj)
         else:
-            # 若解析失敗，則回傳空集合 (或可改為不篩選)
+            # 若解析失敗，則回傳空集合
             all_records = all_records.none()
 
-    # 分頁或顯示更多邏輯
     if show_more == '1':
         # 分頁模式：每頁顯示 20 筆
         paginator = Paginator(all_records, 20)
@@ -148,8 +145,8 @@ def profile_view(request):
             'page_obj': page_obj,
             'search_query': search_query,
             'total_points': total_points,
-            'redemption_records': redemption_records,      # 傳遞使用紀錄
-            'points_expiring_soon': points_expiring_soon,  # 傳遞到期積分
+            'redemption_records': redemption_records,
+            'points_expiring_soon': points_expiring_soon,
         })
     else:
         # 預設只顯示最近 10 筆
@@ -159,8 +156,8 @@ def profile_view(request):
             'records': records,
             'search_query': search_query,
             'total_points': total_points,
-            'redemption_records': redemption_records,      # 傳遞使用紀錄
-            'points_expiring_soon': points_expiring_soon,  # 傳遞到期積分
+            'redemption_records': redemption_records,
+            'points_expiring_soon': points_expiring_soon,
         })
 
 # 6. 新增消費紀錄
@@ -322,7 +319,6 @@ def update_from_google_sheets(request):
 
     return message
 
-
 # ★ 新增：將會員資料同步到 Google Sheets (示範)
 @user_passes_test(lambda u: u.is_superuser)
 def sync_users_to_google_sheets(request):
@@ -333,17 +329,25 @@ def sync_users_to_google_sheets(request):
     import json
     import gspread
     from google.oauth2.service_account import Credentials
+    from django.contrib import messages
 
     message = ""
     try:
-        # 從環境變數取得試算表ID
-        SPREADSHEET_ID = os.getenv("1DsDd1YFcUNX6mtSfoLVDfStSNT9GTGcLIhhRS5eH2Ss", "你的試算表ID")
+        # ★ 改為正確讀取 SPREADSHEET_ID
+        SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "你的試算表ID")
         WORKSHEET_NAME = "MemberList"  # 你想放會員資料的分頁名稱
 
-        # 取得服務帳戶憑證
+        # 指定正確 Scopes，避免 invalid_scope
+        SCOPES = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+
         creds_info = os.getenv("GOOGLE_CREDENTIALS", "")
         creds_dict = json.loads(creds_info)
-        creds = Credentials.from_service_account_info(creds_dict)
+
+        # 使用 service_account_info + scopes
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
 
         # 開啟試算表 & 工作表
