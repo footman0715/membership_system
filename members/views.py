@@ -443,7 +443,6 @@ import random
 from .models import SlotMachineRecord
 from .forms import SlotMachineForm
 
-@login_required
 def slot_machine_3x3_view(request):
     """
     3x3 拉霸機：會員輸入 bet -> 檢查積分 -> 扣除 -> 生成 3x3 -> 判斷獲勝線 -> 加回贏得積分 -> 紀錄結果
@@ -452,14 +451,19 @@ def slot_machine_3x3_view(request):
     grid = []
     win_points = 0
 
-    # 符號出現機率設定（weights 與 pool 長度相同）
-    SYMBOL_POOL = ["7", "⭐", "🍒", "🍋", "🔔"]
-    SYMBOL_WEIGHTS = [1, 2, 3, 4, 4]  # 7 比較少出現
+    # 先計算可用積分
+    total_reward_points = request.user.consumption_records.aggregate(total=Sum('reward_points'))['total'] or 0
+    total_redeemed = request.user.redemption_records.aggregate(total=Sum('points_used'))['total'] or 0
+    available_points = total_reward_points - total_redeemed
 
-    # 不同符號的賠率 (三個相同符號才適用)
+    # 符號出現機率 (weights 與 pool 長度相同)
+    SYMBOL_POOL = ["7", "⭐", "🍒", "🍋", "🔔"]
+    SYMBOL_WEIGHTS = [1, 2, 3, 4, 4]  # 7 出現機率較低
+
+    # 三個相同符號時的賠率
     SYMBOL_MULTIPLIERS = {
-        "7": 5,   # 三個7 => bet * 5
-        "⭐": 3,   # 三個⭐ => bet * 3
+        "7": 5,  # 三個7 => bet * 5
+        "⭐": 3,  # 三個⭐ => bet * 3
         "🍒": 2,
         "🍋": 2,
         "🔔": 2
@@ -471,26 +475,21 @@ def slot_machine_3x3_view(request):
             bet = form.cleaned_data['bet']
             user = request.user
 
-            # 1) 計算可用積分
-            total_reward_points = user.consumption_records.aggregate(total=Sum('reward_points'))['total'] or 0
-            total_redeemed = user.redemption_records.aggregate(total=Sum('points_used'))['total'] or 0
-            available_points = total_reward_points - total_redeemed
-
             if bet > available_points:
                 message = "您沒有足夠的積分來下注。"
             else:
-                # 2) 扣除下注 => 新增 RedemptionRecord
+                # 扣除下注積分 => 新增 RedemptionRecord
                 RedemptionRecord.objects.create(
                     user=user,
                     points_used=bet,
                     redeemed_item="3x3 拉霸下注"
                 )
 
-                # 3) 產生 3x3 符號（使用 weights）
+                # 產生 3x3 符號（使用 weights）
                 flat_symbols = random.choices(SYMBOL_POOL, weights=SYMBOL_WEIGHTS, k=9)
                 grid = [flat_symbols[i*3:(i+1)*3] for i in range(3)]
 
-                # 4) 定義 8 條獲勝線
+                # 定義 8 條獲勝線
                 winning_lines = [
                     [(0,0),(0,1),(0,2)],  # row 0
                     [(1,0),(1,1),(1,2)],  # row 1
@@ -502,7 +501,7 @@ def slot_machine_3x3_view(request):
                     [(0,2),(1,1),(2,0)]   # anti-diag
                 ]
 
-                # 5) 判斷中獎線
+                # 判斷中獎線
                 for line in winning_lines:
                     (r1,c1),(r2,c2),(r3,c3) = line
                     if grid[r1][c1] == grid[r2][c2] == grid[r3][c3]:
@@ -510,10 +509,10 @@ def slot_machine_3x3_view(request):
                         multiplier = SYMBOL_MULTIPLIERS.get(symbol, 2)
                         win_points += bet * multiplier
 
-                # 6) 若有贏分 => 加回
+                # 若有贏分 => 加回
                 if win_points > 0:
                     # 建立一筆 ConsumptionRecord，sold_item="3x3 拉霸中獎"
-                    # 在 models.py 中檢查到 sold_item == "3x3 拉霸中獎" 就會 reward_points = amount
+                    # 在 models.py 中檢查到 sold_item=="3x3 拉霸中獎" 就會 reward_points=amount
                     ConsumptionRecord.objects.create(
                         user=user,
                         amount=Decimal(win_points),
@@ -521,7 +520,7 @@ def slot_machine_3x3_view(request):
                         sales_time=timezone.now()
                     )
 
-                # 7) 紀錄到 SlotMachineRecord
+                # 紀錄到 SlotMachineRecord
                 grid_str = " / ".join(" ".join(row) for row in grid)
                 SlotMachineRecord.objects.create(
                     user=user,
@@ -530,8 +529,13 @@ def slot_machine_3x3_view(request):
                     win_points=win_points
                 )
 
-                # 8) 顯示結果訊息
+                # 顯示結果訊息
                 message = f"結果：\n{grid_str}\n您贏得 {win_points} 積分！"
+
+                # 重新計算剩餘積分（若有扣或加）
+                total_reward_points = user.consumption_records.aggregate(total=Sum('reward_points'))['total'] or 0
+                total_redeemed = user.redemption_records.aggregate(total=Sum('points_used'))['total'] or 0
+                available_points = total_reward_points - total_redeemed
 
     else:
         form = SlotMachineForm()
@@ -540,5 +544,6 @@ def slot_machine_3x3_view(request):
         'form': form,
         'message': message,
         'grid': grid,
-        'win_points': win_points
+        'win_points': win_points,
+        'available_points': available_points,  # 傳給模板
     })
