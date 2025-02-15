@@ -36,3 +36,11 @@ class ProfileEditForm(UserChangeForm):
 
 # 這裡不要再放任何 HTML 註解或不符合 Python 語法的符號
 # 如果需要中文註解，請使用 Python 的 # 或 """ 多行字串 """
+
+# ================================
+# 拉霸機
+# ================================
+
+class SlotMachineForm(forms.Form):
+    bet = forms.IntegerField(min_value=1, label="下注積分")
+

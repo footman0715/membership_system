@@ -17,7 +17,6 @@ class ConsumptionRecord(models.Model):
     sold_item = models.CharField(max_length=200, help_text="銷售品項")
     sales_time = models.DateTimeField(default=timezone.now, help_text="銷售時間")
     reward_points = models.IntegerField(default=0, help_text="回饋積分")
-    # ★ 新增積分到期時間 (一年後)
     expiry_date = models.DateTimeField(null=True, blank=True, help_text="積分到期時間")
 
     def __str__(self):
@@ -30,8 +29,13 @@ class ConsumptionRecord(models.Model):
                 self.sales_time = timezone.now()
             self.expiry_date = self.sales_time + timedelta(days=365)
 
-        # 2. reward_points = 消費金額的 10%
-        self.reward_points = int(self.amount * Decimal('0.1'))
+        # 2. 若 sold_item 為「3x3 拉霸中獎」，直接把 amount 當作 reward_points
+        if self.sold_item == "3x3 拉霸中獎":
+            self.reward_points = int(self.amount)  # 直接加回
+        else:
+            # 一般情況：reward_points = 消費金額的 10%
+            self.reward_points = int(self.amount * Decimal('0.1'))
+
         super().save(*args, **kwargs)
 
 
@@ -53,7 +57,7 @@ class RedemptionRecord(models.Model):
 
 
 # ================================
-# Google Sheets 同步記錄 (GoogleSheetsSyncLog)
+# Google Sheets 同步記錄
 # ================================
 class GoogleSheetsSyncLog(models.Model):
     sync_time = models.DateTimeField(default=timezone.now, help_text="同步時間")
@@ -62,3 +66,21 @@ class GoogleSheetsSyncLog(models.Model):
 
     def __str__(self):
         return f"{self.sync_time.strftime('%Y-%m-%d %H:%M:%S')} - {self.status}"
+
+
+# ================================
+# 拉霸機紀錄 (SlotMachineRecord)
+# ================================
+class SlotMachineRecord(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='slot_records'
+    )
+    bet = models.IntegerField(help_text="下注積分")
+    grid_result = models.TextField(help_text="3x3 拉霸結果，如：🍒 🍋 🍒 / 🍋 🍋 🍋 / 🔔 🍒 7")
+    win_points = models.IntegerField(default=0, help_text="贏得積分(含0)")
+    played_at = models.DateTimeField(default=timezone.now, help_text="遊玩時間")
+
+    def __str__(self):
+        return f"{self.user.username} - Bet: {self.bet}, Win: {self.win_points}"

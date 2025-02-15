@@ -30,4 +30,8 @@ urlpatterns = [
     # 積分相關功能
     # -------------------------
     path('redeem_points/', views.redeem_points_view, name='redeem_points'),
+    # ------------------------
+    # === 新增拉霸機路由 ===
+    # ------------------------
+    path('slot_machine_3x3/', views.slot_machine_3x3_view, name='slot_machine_3x3'),
 ]
