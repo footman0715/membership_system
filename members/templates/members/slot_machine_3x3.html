@@ -7,14 +7,14 @@
 <div class="slot-machine-container">
   <!-- 背景容器 -->
   <div class="machine-bg">
-    <!-- 請確保 slot_machine_blank.png 已放在 static/members/ 裡 -->
+    <!-- 背景圖：請確保 slot_machine_blank.png 已放在 static/members/ 裡 -->
     <img 
       src="{% static 'members/slot_machine_blank.png' %}" 
       alt="slot machine" 
       class="machine-bg-img"
     >
 
-    <!-- ★ 符號顯示區 (3x3) 對準圖中三個轉軸的位置 -->
+    <!-- ★ 符號顯示區 (3x3) -->
     <div class="reels-area" id="reelsArea">
       <!-- 後端產生的最終結果，或假動畫中隨機符號，都會顯示在這裡 -->
     </div>
@@ -62,18 +62,19 @@ document.addEventListener("DOMContentLoaded", function() {
     const reelsArea = document.getElementById("reelsArea");
     const finalGridDiv = document.getElementById("finalGrid");
 
-    // ★ 若按「拉霸！」 => 先播假動畫再提交表單
+    // ★ 按「拉霸！」 => 先播假動畫再提交表單
     slotForm.addEventListener("submit", function(e) {
         e.preventDefault();
         spinReels(() => {
-            // 假動畫結束後再提交表單給後端，後端計算結果並回傳
             slotForm.submit();
         });
     });
 
     // 假動畫：隨機轉動 1.5 秒
     function spinReels(onFinish) {
-        const symbolsPool = ["🍒","🍋","🔔","⭐","7"];
+        // 使用較「傳統拉霸機」風格的符號：7、鈴鐺、櫻桃、橙子、皇冠、獎盃、BAR
+        // 您可自行增刪
+        const symbolsPool = ["7","🔔","🍒","🍊","👑","🏆","BAR"];
         const startTime = Date.now();
         const duration = 1500; // 1.5秒
         const timer = setInterval(() => {
@@ -83,7 +84,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 clearInterval(timer);
                 onFinish();
             } else {
-                // 轉動中：顯示隨機 3x3
                 reelsArea.innerHTML = randomGridHtml(symbolsPool);
             }
         }, 100);
@@ -96,7 +96,12 @@ document.addEventListener("DOMContentLoaded", function() {
             html += "<div>";
             for (let c = 0; c < 3; c++) {
                 const sym = pool[Math.floor(Math.random() * pool.length)];
-                html += `<span class="slot-symbol">${sym}</span>`;
+                // 若符號是 "BAR"，套用額外樣式 (白底 + 黑框)
+                if (sym === "BAR") {
+                    html += `<span class="slot-symbol bar-symbol">BAR</span>`;
+                } else {
+                    html += `<span class="slot-symbol">${sym}</span>`;
+                }
             }
             html += "</div>";
         }
@@ -109,12 +114,15 @@ document.addEventListener("DOMContentLoaded", function() {
         try {
             const grid = JSON.parse(finalData.replace(/'/g, '"'));
             if (Array.isArray(grid) && grid.length === 3) {
-                // 將最終 3x3 結果顯示在 reelsArea
                 let finalHtml = "";
                 for (const row of grid) {
                     finalHtml += "<div>";
                     for (const sym of row) {
-                        finalHtml += `<span class="slot-symbol">${sym}</span>`;
+                        if (sym === "BAR") {
+                            finalHtml += `<span class="slot-symbol bar-symbol">BAR</span>`;
+                        } else {
+                            finalHtml += `<span class="slot-symbol">${sym}</span>`;
+                        }
                     }
                     finalHtml += "</div>";
                 }
@@ -137,36 +145,35 @@ document.addEventListener("DOMContentLoaded", function() {
   margin-top: 1rem;
 }
 
-/* 背景圖容器：固定為 700×500 */
+/* 背景圖容器 */
 .machine-bg {
   position: relative;
-  width: 700px;
-  height: 500px;
+  width: 700px;   /* 依照 slot_machine_blank.png 的實際寬度 */
+  height: 500px;  /* 依照 slot_machine_blank.png 的實際高度 */
 }
 
-/* 背景圖固定大小，不裁切 */
+/* 背景圖不裁切，維持 700x500 */
 .machine-bg-img {
   width: 700px;
   height: 500px;
-  object-fit: none; /* 或移除 object-fit */
+  object-fit: none; /* 確保不被 cover */
 }
 
 /* 符號顯示區：對準圖片中的三個轉軸 */
 .reels-area {
   position: absolute;
-  top: 100px;   /* 若未對準白色窗格，請自行微調 */
-  left: 120px;  /* 若未對準白色窗格，請自行微調 */
-  width: 460px; /* 3 個轉軸的總寬度，可加減 */
+  top: 100px;   /* 若不在正中間，請自行微調 */
+  left: 120px;  /* 若不在正中間，請自行微調 */
+  width: 460px; /* 若寬度不足或過大，請自行微調 */
   height: 220px;
-  z-index: 999; /* 確保符號在圖片上層 */
+  z-index: 999;
 
-  /* 方便符號置中 */
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
 
-  /* 若要除錯，可暫時加上紅色邊框
+  /* 若要測試位置，可暫時開啟紅框
      border: 2px solid red; */
 }
 
@@ -175,16 +182,27 @@ document.addEventListener("DOMContentLoaded", function() {
   text-align: center;
 }
 
-/* 每個符號樣式 */
+/* 一般符號樣式：加大字體，讓它更像拉霸圖示 */
 .slot-symbol {
-  font-size: 2rem;
-  margin: 0 0.4rem;
+  display: inline-block;
+  font-size: 3rem;   /* 調整字體大小，您可改成 4rem, 5rem... */
+  margin: 0 0.6rem;  /* 控制左右間距 */
+}
+
+/* 針對 "BAR" 做特別外觀 (白底 + 黑框 + 粗體) */
+.bar-symbol {
+  font-family: "Impact", sans-serif;
+  color: #000;
+  background-color: #fff;
+  padding: 0 8px;
+  border: 2px solid #000;
+  border-radius: 4px;
 }
 
 /* 操作與資訊區 (下注、積分、返回按鈕等) */
 .slot-controls {
   position: absolute;
-  top: 350px;  /* 若需要，可自行微調 */
+  top: 350px;  /* 若要上移或下移可自行調整 */
   left: 40px;
   width: 200px;
   background: rgba(255,255,255,0.7);
