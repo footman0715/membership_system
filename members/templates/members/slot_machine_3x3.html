@@ -5,23 +5,28 @@
 
 {% block content %}
 <div class="slot-machine-container">
-  <!-- 機台背景容器 -->
+  <!-- 背景容器 -->
   <div class="machine-bg">
-    <!-- 拉霸機背景圖 -->
-    <img src="{% static 'members/slot_machine_blank.png' %}" alt="slot machine" class="machine-bg-img">
+    <!-- 背景圖：請確保 slot_machine_blank.png 已放在 static/members/ 裡 -->
+    <img 
+      src="{% static 'members/slot_machine_blank.png' %}" 
+      alt="slot machine" 
+      class="machine-bg-img"
+    >
 
-    <!-- ★ 轉輪結果顯示區 (3x3) -->
-    <!--   位置對準背景圖三個轉軸，依你實際圖大小來微調 -->
+    <!-- ★ 符號顯示區 (3x3) 對準圖中三個轉軸的位置 -->
     <div class="reels-area" id="reelsArea">
-      <!-- 預設在 JS 假動畫 or 後端最終結果 會更新這裡 -->
+      <!-- 後端產生的最終結果，或假動畫中隨機符號，都會顯示在這裡 -->
     </div>
 
-    <!-- ★ 操作區：顯示剩餘積分、下注表單、返回按鈕、最終訊息等 -->
+    <!-- ★ 操作與資訊區 -->
     <div class="slot-controls">
+      <!-- 顯示剩餘積分 -->
       <div class="alert alert-info mb-2">
         剩餘積分：<strong>{{ available_points }}</strong>
       </div>
 
+      <!-- 下注表單：輸入 bet 後觸發假動畫再提交 -->
       <form method="POST" id="slotForm" class="mb-2">
         {% csrf_token %}
         <label for="id_bet" style="font-weight:bold;">下注積分：</label>
@@ -29,16 +34,18 @@
         <button type="submit" class="btn btn-danger btn-sm" id="spinBtn">拉霸！</button>
       </form>
 
+      <!-- 返回會員資料 -->
       <a href="{% url 'profile' %}" class="btn btn-light btn-sm mb-2">返回會員資料</a>
 
+      <!-- 若後端有傳訊息 (贏分/結果) -->
       {% if message %}
       <div class="alert alert-success" style="white-space: pre-wrap;">
-          {{ message }}
+        {{ message }}
       </div>
       {% endif %}
     </div>
 
-    <!-- ★ 隱藏的最終結果 (若後端有提供 grid) -->
+    <!-- ★ 後端若有最終結果 (grid)，就藏在 data-final，JS 會讀取並顯示 -->
     {% if grid %}
       <div id="finalGrid" data-final='{{ grid|safe }}' style="display:none;"></div>
     {% else %}
@@ -47,7 +54,7 @@
   </div>
 </div>
 
-<!-- 假動畫 JS，並在頁面載入後若有最終結果，就顯示它 -->
+<!-- JS：假動畫 + 顯示最終結果 -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const spinBtn = document.getElementById("spinBtn");
@@ -55,22 +62,22 @@ document.addEventListener("DOMContentLoaded", function() {
     const reelsArea = document.getElementById("reelsArea");
     const finalGridDiv = document.getElementById("finalGrid");
 
-    // 1) 如果使用者按下「拉霸！」 => 假動畫後再提交表單
+    // ★ 若按「拉霸！」 => 先播假動畫再提交表單
     slotForm.addEventListener("submit", function(e) {
         e.preventDefault();
-        spinReels(function() {
+        spinReels(() => {
             slotForm.submit();
         });
     });
 
-    // 2) 假動畫：轉 1.5 秒
+    // 假動畫：隨機轉動 1.5 秒
     function spinReels(onFinish) {
-        let symbolsPool = ["🍒","🍋","🔔","⭐","7"];
-        let startTime = Date.now();
-        let duration = 1500; // 1.5秒
-        let timer = setInterval(function() {
-            let now = Date.now();
-            let elapsed = now - startTime;
+        const symbolsPool = ["🍒","🍋","🔔","⭐","7"];
+        const startTime = Date.now();
+        const duration = 1500; // 1.5秒
+        const timer = setInterval(() => {
+            const now = Date.now();
+            const elapsed = now - startTime;
             if (elapsed >= duration) {
                 clearInterval(timer);
                 onFinish();
@@ -80,13 +87,13 @@ document.addEventListener("DOMContentLoaded", function() {
         }, 100);
     }
 
-    // 3) 生成隨機 3x3 HTML
+    // 生成 3x3 隨機符號 HTML
     function randomGridHtml(pool) {
         let html = "";
         for (let r = 0; r < 3; r++) {
             html += "<div>";
             for (let c = 0; c < 3; c++) {
-                let sym = pool[Math.floor(Math.random() * pool.length)];
+                const sym = pool[Math.floor(Math.random() * pool.length)];
                 html += `<span class="slot-symbol">${sym}</span>`;
             }
             html += "</div>";
@@ -94,85 +101,85 @@ document.addEventListener("DOMContentLoaded", function() {
         return html;
     }
 
-    // 4) 若後端已給最終結果 => 顯示它
-    let finalData = finalGridDiv.dataset.final;
+    // ★ 若後端已產生最終結果 => 顯示它
+    const finalData = finalGridDiv.dataset.final;
     if (finalData) {
         try {
-            let grid = JSON.parse(finalData.replace(/'/g, '"'));
-            if (grid.length === 3) {
-                // 顯示最終 3x3
-                let html = "";
-                for (let row of grid) {
-                    html += "<div>";
-                    for (let sym of row) {
-                        html += `<span class="slot-symbol">${sym}</span>`;
+            const grid = JSON.parse(finalData.replace(/'/g, '"'));
+            if (Array.isArray(grid) && grid.length === 3) {
+                // 將最終 3x3 結果顯示在 reelsArea
+                let finalHtml = "";
+                for (const row of grid) {
+                    finalHtml += "<div>";
+                    for (const sym of row) {
+                        finalHtml += `<span class="slot-symbol">${sym}</span>`;
                     }
-                    html += "</div>";
+                    finalHtml += "</div>";
                 }
-                reelsArea.innerHTML = html;
+                reelsArea.innerHTML = finalHtml;
             }
-        } catch(e) {
+        } catch (e) {
             console.error("parse final grid error:", e);
         }
     }
 });
 </script>
-{% endblock %}
+{% endblock content %}
 
 {% block extra_style %}
 <style>
-/* 1) 整個容器置中 */
+/* 外層容器置中 */
 .slot-machine-container {
   display: flex;
   justify-content: center;
   margin-top: 1rem;
 }
 
-/* 2) 機台背景區域 (固定寬高, 依實際圖大小) */
+/* 背景圖容器 */
 .machine-bg {
   position: relative;
-  width: 700px;  /* 依你的圖寬度 */
-  height: 500px; /* 依你的圖高度 */
+  width: 700px;   /* 依照 slot_machine_blank.png 的寬度調整 */
+  height: 500px;  /* 依照 slot_machine_blank.png 的高度調整 */
 }
 
-/* 3) 背景圖全滿該區域 */
+/* 背景圖全滿 */
 .machine-bg-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover; /* 可改成 contain, fill 等 */
 }
 
-/* 4) 轉輪顯示區: 對準圖上三個轉軸 */
+/* 符號顯示區：對準圖片中的三個轉軸 */
 .reels-area {
   position: absolute;
-  top: 100px;   /* 自行微調 */
-  left: 120px;  /* 自行微調 */
-  width: 460px; /* 3 格寬度(3*大約150px), 視圖大小調整 */
+  top: 100px;   /* 需自行微調 */
+  left: 120px;  /* 需自行微調 */
+  width: 460px; /* 3 個轉軸的總寬度 (可加減) */
   height: 220px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  /* 可加個半透明背景幫助對齊:
-     background: rgba(255,255,255,0.3);
-     border: 1px solid #333;
-  */
 }
+
+/* 讓每一列 (3 個符號) 置中 */
 .reels-area div {
   text-align: center;
 }
+
+/* 每個符號樣式 */
 .slot-symbol {
   font-size: 2rem;
   margin: 0 0.4rem;
 }
 
-/* 5) 下方操控區(下注、積分、返回等) => 絕對定位 */
+/* 操作與資訊區 (下注、積分、返回按鈕等) */
 .slot-controls {
   position: absolute;
-  top: 350px;   /* 依實際需求 */
-  left: 50px;
+  top: 350px;  /* 依照你的圖片需求微調 */
+  left: 40px;
   width: 200px;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.7);
   padding: 0.5rem;
   border-radius: 6px;
 }
