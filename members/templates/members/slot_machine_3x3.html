@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}3x3 拉霸機{% endblock %}
+{% block title %}3x3 拉霸機{% endblock title %}
 
 {% block content %}
 <div class="slot-machine-container">
   <!-- 背景容器 -->
   <div class="machine-bg">
-    <!-- 背景圖：請確保 slot_machine_blank.png 已放在 static/members/ 裡 -->
+    <!-- 請確保 slot_machine_blank.png 已放在 static/members/ 裡 -->
     <img 
       src="{% static 'members/slot_machine_blank.png' %}" 
       alt="slot machine" 
@@ -137,31 +137,37 @@ document.addEventListener("DOMContentLoaded", function() {
   margin-top: 1rem;
 }
 
-/* 背景圖容器 */
+/* 背景圖容器：固定為 700×500 */
 .machine-bg {
   position: relative;
-  width: 700px;   /* 依照 slot_machine_blank.png 的寬度調整 */
-  height: 500px;  /* 依照 slot_machine_blank.png 的高度調整 */
+  width: 700px;
+  height: 500px;
 }
 
-/* 背景圖全滿 */
+/* 背景圖固定大小，不裁切 */
 .machine-bg-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* 可改成 contain, fill 等 */
+  width: 700px;
+  height: 500px;
+  object-fit: none; /* 或移除 object-fit */
 }
 
 /* 符號顯示區：對準圖片中的三個轉軸 */
 .reels-area {
   position: absolute;
-  top: 100px;   /* 需自行微調 */
-  left: 120px;  /* 需自行微調 */
-  width: 460px; /* 3 個轉軸的總寬度 (可加減) */
+  top: 100px;   /* 若未對準白色窗格，請自行微調 */
+  left: 120px;  /* 若未對準白色窗格，請自行微調 */
+  width: 460px; /* 3 個轉軸的總寬度，可加減 */
   height: 220px;
+  z-index: 999; /* 確保符號在圖片上層 */
+
+  /* 方便符號置中 */
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+
+  /* 若要除錯，可暫時加上紅色邊框
+     border: 2px solid red; */
 }
 
 /* 讓每一列 (3 個符號) 置中 */
@@ -178,7 +184,7 @@ document.addEventListener("DOMContentLoaded", function() {
 /* 操作與資訊區 (下注、積分、返回按鈕等) */
 .slot-controls {
   position: absolute;
-  top: 350px;  /* 依照你的圖片需求微調 */
+  top: 350px;  /* 若需要，可自行微調 */
   left: 40px;
   width: 200px;
   background: rgba(255,255,255,0.7);
