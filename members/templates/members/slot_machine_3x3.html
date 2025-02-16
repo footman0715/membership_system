@@ -66,6 +66,7 @@ document.addEventListener("DOMContentLoaded", function() {
     slotForm.addEventListener("submit", function(e) {
         e.preventDefault();
         spinReels(() => {
+            // 假動畫結束後再提交表單給後端，後端計算結果並回傳
             slotForm.submit();
         });
     });
@@ -82,6 +83,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 clearInterval(timer);
                 onFinish();
             } else {
+                // 轉動中：顯示隨機 3x3
                 reelsArea.innerHTML = randomGridHtml(symbolsPool);
             }
         }, 100);
@@ -101,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return html;
     }
 
-    // ★ 若後端已產生最終結果 => 顯示它
+    // ★ 若後端已產生最終結果 => 直接顯示它 (頁面載入後)
     const finalData = finalGridDiv.dataset.final;
     if (finalData) {
         try {
