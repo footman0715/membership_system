@@ -1,213 +1,96 @@
-{% extends "base.html" %}
-{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Flex 拉霸機示範</title>
+  <style>
+    /* 1) 父容器：固定 700×500，背景圖直接鋪在這裡 */
+    .slot-machine {
+      width: 700px;
+      height: 500px;
+      background: url("static/members/slot_machine_blank.png") no-repeat center center;
+      background-size: 700px 500px; /* 依圖片實際大小 */
+      margin: 2rem auto;           /* 讓整個區塊置中 */
+      display: flex;
+      flex-direction: column;      /* 上方可放控制區，下方放 reels */
+      justify-content: space-between; 
+      /* ↑ 也可用 space-around / space-evenly，看需求 */
+      align-items: center;
+      border: 1px solid #ccc;      /* 偵錯用，可移除 */
+      box-sizing: border-box;
+      position: relative;
+    }
 
-{% block title %}3x3 拉霸機{% endblock title %}
+    /* 2) 下注表單、剩餘積分等控制區 (可放在上方或下方) */
+    .slot-controls {
+      width: 90%;       /* 視需求可調整 */
+      background-color: rgba(255,255,255,0.7);
+      margin-top: 10px;
+      padding: 0.5rem;
+      border-radius: 6px;
+      text-align: center;
+    }
 
-{% block content %}
-<div class="slot-machine-container">
-  <!-- 背景容器 -->
-  <div class="machine-bg">
-    <!-- 背景圖：請確保 slot_machine_blank.png 已放在 static/members/ 裡 -->
-    <img 
-      src="{% static 'members/slot_machine_blank.png' %}" 
-      alt="slot machine" 
-      class="machine-bg-img"
-    >
+    /* 3) 整個三欄 reels 區 */
+    .reels {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;       /* 與父容器同寬 */
+      height: 60%;       /* 依需求給高度，讓符號約在中間 */
+      /* ↑ 也可用固定 px，如 250px */
+    }
 
-    <!-- ★ 符號顯示區 (3x3) -->
-    <div class="reels-area" id="reelsArea">
-      <!-- 後端產生的最終結果，或假動畫中隨機符號，都會顯示在這裡 -->
+    /* 4) 單欄 (reel-col)：垂直排列 3 個符號 */
+    .reel-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      /* 也可加寬度，以控制三欄的間距 */
+      width: 20%; /* 3 欄合計約 60%，中間留些空隙 */
+      /* ↑ 視需求可再調整 */
+    }
+
+    /* 5) 單個符號 (slot-symbol) */
+    .slot-symbol {
+      font-size: 3rem; 
+      margin: 0.5rem 0; /* 垂直間距 */
+    }
+  </style>
+</head>
+<body>
+
+<div class="slot-machine">
+  <!-- 上方控制區 (可放表單、剩餘積分、按鈕等) -->
+  <div class="slot-controls">
+    <p>剩餘積分：<strong>999</strong></p>
+    <label>下注積分：<input type="number" min="1"></label>
+    <button>拉霸！</button>
+  </div>
+
+  <!-- 三欄符號區 (reels) -->
+  <div class="reels">
+    <!-- 第 1 欄 -->
+    <div class="reel-col">
+      <span class="slot-symbol">7</span>
+      <span class="slot-symbol">🍒</span>
+      <span class="slot-symbol">BAR</span>
     </div>
-
-    <!-- ★ 操作與資訊區 -->
-    <div class="slot-controls">
-      <!-- 顯示剩餘積分 -->
-      <div class="alert alert-info mb-2">
-        剩餘積分：<strong>{{ available_points }}</strong>
-      </div>
-
-      <!-- 下注表單：輸入 bet 後觸發假動畫再提交 -->
-      <form method="POST" id="slotForm" class="mb-2">
-        {% csrf_token %}
-        <label for="id_bet" style="font-weight:bold;">下注積分：</label>
-        {{ form.bet }}
-        <button type="submit" class="btn btn-danger btn-sm" id="spinBtn">拉霸！</button>
-      </form>
-
-      <!-- 返回會員資料 -->
-      <a href="{% url 'profile' %}" class="btn btn-light btn-sm mb-2">返回會員資料</a>
-
-      <!-- 若後端有傳訊息 (贏分/結果) -->
-      {% if message %}
-      <div class="alert alert-success" style="white-space: pre-wrap;">
-        {{ message }}
-      </div>
-      {% endif %}
+    <!-- 第 2 欄 -->
+    <div class="reel-col">
+      <span class="slot-symbol">🍊</span>
+      <span class="slot-symbol">🔔</span>
+      <span class="slot-symbol">⭐</span>
     </div>
-
-    <!-- ★ 後端若有最終結果 (grid)，就藏在 data-final，JS 會讀取並顯示 -->
-    {% if grid %}
-      <div id="finalGrid" data-final='{{ grid|safe }}' style="display:none;"></div>
-    {% else %}
-      <div id="finalGrid" data-final='[]' style="display:none;"></div>
-    {% endif %}
+    <!-- 第 3 欄 -->
+    <div class="reel-col">
+      <span class="slot-symbol">🍋</span>
+      <span class="slot-symbol">BAR</span>
+      <span class="slot-symbol">7</span>
+    </div>
   </div>
 </div>
 
-<!-- JS：假動畫 + 顯示最終結果 -->
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    const spinBtn = document.getElementById("spinBtn");
-    const slotForm = document.getElementById("slotForm");
-    const reelsArea = document.getElementById("reelsArea");
-    const finalGridDiv = document.getElementById("finalGrid");
-
-    // ★ 按「拉霸！」 => 先播假動畫再提交表單
-    slotForm.addEventListener("submit", function(e) {
-        e.preventDefault();
-        spinReels(() => {
-            slotForm.submit();
-        });
-    });
-
-    // 假動畫：隨機轉動 1.5 秒
-    function spinReels(onFinish) {
-        // 使用較「傳統拉霸機」風格的符號：7、鈴鐺、櫻桃、橙子、皇冠、獎盃、BAR
-        // 您可自行增刪
-        const symbolsPool = ["7","🔔","🍒","🍊","👑","🏆","BAR"];
-        const startTime = Date.now();
-        const duration = 1500; // 1.5秒
-        const timer = setInterval(() => {
-            const now = Date.now();
-            const elapsed = now - startTime;
-            if (elapsed >= duration) {
-                clearInterval(timer);
-                onFinish();
-            } else {
-                reelsArea.innerHTML = randomGridHtml(symbolsPool);
-            }
-        }, 100);
-    }
-
-    // 生成 3x3 隨機符號 HTML
-    function randomGridHtml(pool) {
-        let html = "";
-        for (let r = 0; r < 3; r++) {
-            html += "<div>";
-            for (let c = 0; c < 3; c++) {
-                const sym = pool[Math.floor(Math.random() * pool.length)];
-                // 若符號是 "BAR"，套用額外樣式 (白底 + 黑框)
-                if (sym === "BAR") {
-                    html += `<span class="slot-symbol bar-symbol">BAR</span>`;
-                } else {
-                    html += `<span class="slot-symbol">${sym}</span>`;
-                }
-            }
-            html += "</div>";
-        }
-        return html;
-    }
-
-    // ★ 若後端已產生最終結果 => 直接顯示它 (頁面載入後)
-    const finalData = finalGridDiv.dataset.final;
-    if (finalData) {
-        try {
-            const grid = JSON.parse(finalData.replace(/'/g, '"'));
-            if (Array.isArray(grid) && grid.length === 3) {
-                let finalHtml = "";
-                for (const row of grid) {
-                    finalHtml += "<div>";
-                    for (const sym of row) {
-                        if (sym === "BAR") {
-                            finalHtml += `<span class="slot-symbol bar-symbol">BAR</span>`;
-                        } else {
-                            finalHtml += `<span class="slot-symbol">${sym}</span>`;
-                        }
-                    }
-                    finalHtml += "</div>";
-                }
-                reelsArea.innerHTML = finalHtml;
-            }
-        } catch (e) {
-            console.error("parse final grid error:", e);
-        }
-    }
-});
-</script>
-{% endblock content %}
-
-{% block extra_style %}
-<style>
-/* 外層容器置中 */
-.slot-machine-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
-/* 背景圖容器 */
-.machine-bg {
-  position: relative;
-  width: 700px;   /* 依照 slot_machine_blank.png 的實際寬度 */
-  height: 500px;  /* 依照 slot_machine_blank.png 的實際高度 */
-}
-
-/* 背景圖不裁切，維持 700x500 */
-.machine-bg-img {
-  width: 700px;
-  height: 500px;
-  object-fit: none; /* 確保不被 cover */
-}
-
-/* 符號顯示區：對準圖片中的三個轉軸 */
-.reels-area {
-  position: absolute;
-  top: 100px;   /* 若不在正中間，請自行微調 */
-  left: 120px;  /* 若不在正中間，請自行微調 */
-  width: 460px; /* 若寬度不足或過大，請自行微調 */
-  height: 220px;
-  z-index: 999;
-
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-
-  /* 若要測試位置，可暫時開啟紅框
-     border: 2px solid red; */
-}
-
-/* 讓每一列 (3 個符號) 置中 */
-.reels-area div {
-  text-align: center;
-}
-
-/* 一般符號樣式：加大字體，讓它更像拉霸圖示 */
-.slot-symbol {
-  display: inline-block;
-  font-size: 3rem;   /* 調整字體大小，您可改成 4rem, 5rem... */
-  margin: 0 0.6rem;  /* 控制左右間距 */
-}
-
-/* 針對 "BAR" 做特別外觀 (白底 + 黑框 + 粗體) */
-.bar-symbol {
-  font-family: "Impact", sans-serif;
-  color: #000;
-  background-color: #fff;
-  padding: 0 8px;
-  border: 2px solid #000;
-  border-radius: 4px;
-}
-
-/* 操作與資訊區 (下注、積分、返回按鈕等) */
-.slot-controls {
-  position: absolute;
-  top: 350px;  /* 若要上移或下移可自行調整 */
-  left: 40px;
-  width: 200px;
-  background: rgba(255,255,255,0.7);
-  padding: 0.5rem;
-  border-radius: 6px;
-}
-</style>
-{% endblock extra_style %}
+</body>
+</html>
