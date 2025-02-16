@@ -7,49 +7,55 @@
 <div class="slot-machine-container">
   <!-- 機台背景容器 -->
   <div class="machine-bg">
-    <!-- 你的拉霸機背景圖 -->
+    <!-- 拉霸機背景圖 -->
     <img src="{% static 'members/slot_machine_blank.png' %}" alt="slot machine" class="machine-bg-img">
 
-    <!-- 轉輪結果顯示區 (3x3) -->
+    <!-- ★ 轉輪結果顯示區 (3x3) -->
+    <!--   位置對準背景圖三個轉軸，依你實際圖大小來微調 -->
     <div class="reels-area" id="reelsArea">
-      <!-- 這裡會顯示假動畫或後端產生的最終 3x3 結果 -->
+      <!-- 預設在 JS 假動畫 or 後端最終結果 會更新這裡 -->
     </div>
 
-    <!-- 可以在下方或另行絕對定位你的「下注按鈕、剩餘積分、返回按鈕」等 -->
-    <!-- 範例：顯示剩餘積分、表單 -->
+    <!-- ★ 操作區：顯示剩餘積分、下注表單、返回按鈕、最終訊息等 -->
     <div class="slot-controls">
-      <div class="alert alert-info">
+      <div class="alert alert-info mb-2">
         剩餘積分：<strong>{{ available_points }}</strong>
       </div>
 
-      <form method="POST" id="slotForm">
+      <form method="POST" id="slotForm" class="mb-2">
         {% csrf_token %}
         <label for="id_bet" style="font-weight:bold;">下注積分：</label>
         {{ form.bet }}
         <button type="submit" class="btn btn-danger btn-sm" id="spinBtn">拉霸！</button>
       </form>
 
-      <p>
-        <a href="{% url 'profile' %}" class="btn btn-light btn-sm">返回會員資料</a>
-      </p>
+      <a href="{% url 'profile' %}" class="btn btn-light btn-sm mb-2">返回會員資料</a>
 
       {% if message %}
-      <div class="alert alert-success mt-2" style="white-space: pre-wrap;">
+      <div class="alert alert-success" style="white-space: pre-wrap;">
           {{ message }}
       </div>
       {% endif %}
     </div>
+
+    <!-- ★ 隱藏的最終結果 (若後端有提供 grid) -->
+    {% if grid %}
+      <div id="finalGrid" data-final='{{ grid|safe }}' style="display:none;"></div>
+    {% else %}
+      <div id="finalGrid" data-final='[]' style="display:none;"></div>
+    {% endif %}
   </div>
 </div>
 
-<!-- 假動畫 JS，依照你原先的寫法 -->
+<!-- 假動畫 JS，並在頁面載入後若有最終結果，就顯示它 -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const spinBtn = document.getElementById("spinBtn");
     const slotForm = document.getElementById("slotForm");
     const reelsArea = document.getElementById("reelsArea");
+    const finalGridDiv = document.getElementById("finalGrid");
 
-    // 假動畫：先阻止 submit -> 播動畫 -> submit
+    // 1) 如果使用者按下「拉霸！」 => 假動畫後再提交表單
     slotForm.addEventListener("submit", function(e) {
         e.preventDefault();
         spinReels(function() {
@@ -57,6 +63,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 
+    // 2) 假動畫：轉 1.5 秒
     function spinReels(onFinish) {
         let symbolsPool = ["🍒","🍋","🔔","⭐","7"];
         let startTime = Date.now();
@@ -73,6 +80,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }, 100);
     }
 
+    // 3) 生成隨機 3x3 HTML
     function randomGridHtml(pool) {
         let html = "";
         for (let r = 0; r < 3; r++) {
@@ -85,46 +93,69 @@ document.addEventListener("DOMContentLoaded", function() {
         }
         return html;
     }
+
+    // 4) 若後端已給最終結果 => 顯示它
+    let finalData = finalGridDiv.dataset.final;
+    if (finalData) {
+        try {
+            let grid = JSON.parse(finalData.replace(/'/g, '"'));
+            if (grid.length === 3) {
+                // 顯示最終 3x3
+                let html = "";
+                for (let row of grid) {
+                    html += "<div>";
+                    for (let sym of row) {
+                        html += `<span class="slot-symbol">${sym}</span>`;
+                    }
+                    html += "</div>";
+                }
+                reelsArea.innerHTML = html;
+            }
+        } catch(e) {
+            console.error("parse final grid error:", e);
+        }
+    }
 });
 </script>
-{% endblock content %}
+{% endblock %}
 
 {% block extra_style %}
 <style>
+/* 1) 整個容器置中 */
 .slot-machine-container {
   display: flex;
   justify-content: center;
   margin-top: 1rem;
 }
 
-/* 機台背景區域 */
+/* 2) 機台背景區域 (固定寬高, 依實際圖大小) */
 .machine-bg {
   position: relative;
-  width: 700px;  /* 依你的圖實際寬度 */
-  height: 500px; /* 依你的圖實際高度 */
+  width: 700px;  /* 依你的圖寬度 */
+  height: 500px; /* 依你的圖高度 */
 }
 
-/* 背景圖全滿該區域 */
+/* 3) 背景圖全滿該區域 */
 .machine-bg-img {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* 依喜好 */
+  object-fit: cover;
 }
 
-/* 轉輪顯示區: 對準三個白色框的位置 */
+/* 4) 轉輪顯示區: 對準圖上三個轉軸 */
 .reels-area {
   position: absolute;
-  top: 100px;    /* 依實際圖來微調 */
-  left: 120px;   /* 依實際圖來微調 */
-  width: 460px;  /* 3 格寬度, 自行測量 */
-  height: 220px; /* 白色框的高度 */
+  top: 100px;   /* 自行微調 */
+  left: 120px;  /* 自行微調 */
+  width: 460px; /* 3 格寬度(3*大約150px), 視圖大小調整 */
+  height: 220px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  /* 可加背景以測試對齊
-  background: rgba(255,255,255,0.3);
-  border: 1px solid #333;
+  /* 可加個半透明背景幫助對齊:
+     background: rgba(255,255,255,0.3);
+     border: 1px solid #333;
   */
 }
 .reels-area div {
@@ -135,10 +166,10 @@ document.addEventListener("DOMContentLoaded", function() {
   margin: 0 0.4rem;
 }
 
-/* 下方操控區, 也絕對定位, 依喜好放位置 */
+/* 5) 下方操控區(下注、積分、返回等) => 絕對定位 */
 .slot-controls {
   position: absolute;
-  top: 350px;  /* 看你想放在哪 */
+  top: 350px;   /* 依實際需求 */
   left: 50px;
   width: 200px;
   background: rgba(255,255,255,0.6);
