@@ -2,58 +2,78 @@
 {% block title %}3x3 拉霸機{% endblock %}
 
 {% block content %}
-<!-- 外層區塊：炫彩漸層背景 -->
-<div class="slot-machine-bg">
-
-  <!-- 半透明卡片，容納原有功能 -->
-  <div class="slot-machine-card">
-
-    <!-- 拉霸機標題 (保留原有 h2，但加上炫彩霓虹) -->
-    <h2 class="my-3 slot-machine-title">3x3 拉霸機</h2>
-
-    <!-- 顯示剩餘積分 (原有 alert 區塊) -->
-    <div class="alert alert-info">
-        剩餘積分：<strong>{{ available_points }}</strong>
+<div class="slot-machine-container">
+  <!-- 機台本體（紅色區） -->
+  <div class="machine-body">
+    <!-- 左側手把 -->
+    <div class="machine-handle">
+      <div class="handle-bar"></div>
+      <div class="handle-knob"></div>
     </div>
 
-    <!-- 回到會員資料頁 (原有按鈕) -->
-    <p>
-        <a href="{% url 'profile' %}" class="btn btn-light">返回會員資料</a>
-    </p>
+    <!-- 中間轉輪區 -->
+    <div class="reels-area">
+      <!-- 上方標題 -->
+      <h2 class="machine-title">3x3 拉霸機</h2>
 
-    <!-- 原有表單 (加上小裝飾) -->
-    <form method="POST" id="slotForm" class="card p-3 mb-3" style="max-width: 400px; margin:auto;">
+      <!-- 剩餘積分、返回按鈕 -->
+      <div class="d-flex justify-content-between align-items-center my-2 px-3">
+        <div class="alert alert-info mb-0" style="flex:1;">
+          剩餘積分：<strong>{{ available_points }}</strong>
+        </div>
+        <a href="{% url 'profile' %}" class="btn btn-light ms-2">返回會員資料</a>
+      </div>
+
+      <!-- 下注表單 -->
+      <form method="POST" id="slotForm" class="p-3" style="max-width: 400px; margin:auto;">
         {% csrf_token %}
-        <div class="mb-3">
+        <div class="mb-3 text-center">
             {{ form.bet.label_tag }}
             {{ form.bet }}
             <small class="form-text text-muted">請輸入想下注的積分</small>
         </div>
-        <button type="submit" class="btn btn-danger btn-lg" id="spinBtn">拉霸！</button>
-    </form>
+        <div class="text-center">
+          <button type="submit" class="btn btn-danger btn-lg" id="spinBtn">拉霸！</button>
+        </div>
+      </form>
 
-    <!-- 若有中獎/提示訊息 (原有 alert-success) -->
-    {% if message %}
-    <div class="alert alert-success" style="white-space: pre-wrap;">
-        {{ message }}
-    </div>
-    {% endif %}
+      {% if message %}
+      <div class="alert alert-success mt-3 text-center" style="white-space: pre-wrap;">
+          {{ message }}
+      </div>
+      {% endif %}
 
-    <!-- 轉動結果區塊 (原有 slotResult) -->
-    <div id="slotResult" class="my-4">
-        <!-- 後端最終結果 data -->
+      <!-- 轉動結果顯示區 -->
+      <div id="slotResult" class="my-4 text-center">
         {% if grid %}
           <div id="finalGrid" data-final='{{ grid|safe }}'></div>
         {% else %}
           <div id="finalGrid" data-final='[]'></div>
         {% endif %}
-        <!-- 實際顯示區域 (原有 reelsArea) -->
-        <div id="reelsArea" class="mt-3"></div>
+        <div id="reelsArea" class="reels-display mt-3"></div>
+      </div>
+    </div><!-- reels-area -->
+
+    <!-- 右側賠率表 (paytable) -->
+    <div class="machine-paytable">
+      <h5 class="paytable-title">賠率表</h5>
+      <ul class="paytable-list">
+        <li><span>7 7 7</span> = <span>×5</span></li>
+        <li><span>⭐ ⭐ ⭐</span> = <span>×3</span></li>
+        <li><span>🍒 🍒 🍒</span> = <span>×2</span></li>
+        <li><span>🍋 🍋 🍋</span> = <span>×2</span></li>
+        <li><span>🔔 🔔 🔔</span> = <span>×2</span></li>
+      </ul>
     </div>
+  </div><!-- machine-body -->
+
+  <!-- 人形 + 底座 (僅裝飾用) -->
+  <div class="machine-stand">
+    <div class="stand-person"></div>
   </div>
 </div>
 
-<!-- 保留原有 JS 假動畫邏輯 -->
+<!-- 原有假動畫 JS -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const spinBtn = document.getElementById("spinBtn");
@@ -61,7 +81,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const reelsArea = document.getElementById("reelsArea");
     const finalGridDiv = document.getElementById("finalGrid");
 
-    // 阻止表單預設提交，先播放假動畫
+    // 阻止表單預設提交
     slotForm.addEventListener("submit", function(e) {
         e.preventDefault();
         spinReels(function() {
@@ -92,15 +112,15 @@ document.addEventListener("DOMContentLoaded", function() {
         for (let r = 0; r < 3; r++) {
             html += "<div>";
             for (let c = 0; c < 3; c++) {
-                let sym = pool[Math.floor(Math.random() * pool.length)];
-                html += `<span style="font-size:2rem;margin-right:1em;">${sym}</span>`;
+                let sym = pool[Math.floor(Math.random()*pool.length)];
+                html += `<span class="slot-symbol">${sym}</span>`;
             }
             html += "</div>";
         }
         return html;
     }
 
-    // 顯示後端的最終結果 (若有)
+    // 顯示後端的最終結果
     let finalData = finalGridDiv.dataset.final;
     if (finalData) {
         try {
@@ -109,7 +129,7 @@ document.addEventListener("DOMContentLoaded", function() {
             for (let row of grid) {
                 html += "<div>";
                 for (let sym of row) {
-                    html += `<span style="font-size:2rem;margin-right:1em;">${sym}</span>`;
+                    html += `<span class="slot-symbol">${sym}</span>`;
                 }
                 html += "</div>";
             }
@@ -124,59 +144,118 @@ document.addEventListener("DOMContentLoaded", function() {
 
 {% block extra_style %}
 <style>
-/* 背景：Vegas 風格漸層 + 星光閃爍 */
-.slot-machine-bg {
+/* 整個頁面的容器，含機台+人形 */
+.slot-machine-container {
   position: relative;
-  min-height: 100vh;
-  padding: 2rem;
-  background: linear-gradient(135deg, #ff6a00, #ee0979);
-  overflow: hidden; /* 使背景裝飾不超出容器 */
+  width: 100%;
+  min-height: 80vh;
+  margin: 1rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 紅色機台外觀 */
+.machine-body {
+  background: #d21f26;
+  border: 3px solid #900;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-/* 背景上做一個閃爍星點 */
-.slot-machine-bg::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(rgba(255,255,255,0.3) 2px, transparent 3px) repeat;
-  background-size: 50px 50px;
-  opacity: 0.3;
-  animation: sparkle 4s linear infinite;
-  pointer-events: none;
-}
-@keyframes sparkle {
-  0% { background-position: 0 0; }
-  100% { background-position: 50px 50px; }
-}
-
-/* 半透明外框卡片 */
-.slot-machine-card {
+  padding: 1rem;
   position: relative;
-  max-width: 600px;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 15px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 0 30px rgba(0,0,0,0.3);
-  padding: 2rem;
-  z-index: 1;
 }
 
-/* 拉霸機標題：霓虹字 */
-.slot-machine-title {
-  font-family: "Impact", sans-serif;
+/* 左側手把 */
+.machine-handle {
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 1rem;
+}
+.handle-bar {
+  width: 10px;
+  height: 80px;
+  background: #444;
+  border-radius: 5px;
+}
+.handle-knob {
+  width: 20px;
+  height: 20px;
+  background: #666;
+  border-radius: 50%;
+  margin-top: 10px;
+}
+
+/* 中間轉輪區 */
+.reels-area {
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0 1rem;
+  min-width: 400px;
+}
+
+/* 標題 */
+.machine-title {
   color: #fff;
-  text-shadow:
-    0 0 5px rgba(255,255,255,0.8),
-    0 0 10px rgba(255,255,255,0.8),
-    0 0 20px #ff00de,
-    0 0 30px #ff00de,
-    0 0 40px #ff00de;
+  text-align: center;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px #000;
+}
+
+/* 右側賠率表 */
+.machine-paytable {
+  background: #f4f4f4;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  min-width: 150px;
   text-align: center;
 }
+.paytable-title {
+  margin-bottom: 1rem;
+  font-weight: bold;
+}
+.paytable-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.paytable-list li {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+}
+
+/* 拉霸機下方：機台腳踏板 + 人形 */
+.machine-stand {
+  position: relative;
+  width: 100%;
+  height: 100px;
+  margin-top: -10px;
+  background: #555;
+  border-top: 2px solid #000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.stand-person {
+  width: 20px;
+  height: 40px;
+  background: orange;
+  border-radius: 5px;
+  position: relative;
+  top: -20px;
+}
+
+/* slot-symbol：轉輪符號外觀 */
+.slot-symbol {
+  font-size: 2rem;
+  margin: 0 0.5rem;
+}
 </style>
-{% endblock %}
+{% endblock extra_style %}
