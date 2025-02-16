@@ -5,25 +5,35 @@
     <title>{% block title %}會員系統{% endblock %}</title>
     <!-- 引入 Bootstrap CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- 預留一個區塊，給子模板放額外的 CSS 或 style -->
+    {% block extra_style %}{% endblock extra_style %}
 </head>
-<body class="container mt-4">
+<body>
+    <!-- 若你想讓背景全螢幕，可以不使用 .container 包住 -->
+    <!-- 但若你希望多數頁面保持「置中、留白」的佈局，可留 container -->
+    <div class="container mt-4">
 
-    <!-- 訊息顯示區塊 -->
-    {% if messages %}
-        <div class="mb-3">
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
+        <!-- 訊息顯示區塊（Django messages） -->
+        {% if messages %}
+            <div class="mb-3">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
 
-    {% block content %}
-    {% endblock %}
+        <!-- 主要內容區塊，子模板會在這裡插入 content -->
+        {% block content %}
+        {% endblock content %}
 
-    <!-- 引入 Bootstrap JS（選用，若需要 alert 自動關閉功能） -->
+    </div><!-- /container -->
+
+    <!-- Bootstrap JS（若需要 alert 自動關閉功能等） -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- 預留一個區塊，給子模板放額外的 JS -->
+    {% block extra_script %}{% endblock extra_script %}
 </body>
 </html>
