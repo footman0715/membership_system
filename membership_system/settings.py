@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-hl^%6noq3x=e&!%bb(f7p#*5+bbso0ss*pitrz!l!23)9pj')
 
 # DEBUG：預設關閉，除非環境變數設定為 True
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'False') == 'False'
 
 # ALLOWED_HOSTS：從環境變數取得允許存取的主機名稱（以逗號分隔）
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(",")
@@ -138,9 +138,7 @@ STATICFILES_DIRS = [ BASE_DIR / "static" ]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # 指定靜態檔案所在的資料夾，請確保在專案根目錄下建立「static」資料夾
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "static"),
-]
+
 
 # 當執行 collectstatic 時，靜態檔案會被收集到此資料夾
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")

@@ -7,7 +7,8 @@
 "members/Git-2.47.1.2-64-bit.exe" 
 "members/jdk-23_windows-x64_bin.zip" 
 "members/Git-2.47.1.2-64-bit.exe" 
-"members/jdk-23_windows-x64_bin.zip" 
+"members/jdk-23_windows-x64_bin.zip"
+"staticfiles/" 
 # 忽略敏感檔案
 *.json
 *.exe
