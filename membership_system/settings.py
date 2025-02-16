@@ -134,6 +134,8 @@ USE_TZ = True
 # ==============================================================================
 
 STATIC_URL = '/static/'
+STATICFILES_DIRS = [ BASE_DIR / "static" ]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # 指定靜態檔案所在的資料夾，請確保在專案根目錄下建立「static」資料夾
 STATICFILES_DIRS = [
