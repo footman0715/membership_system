@@ -52,26 +52,26 @@
         const frame = scene.add.image(400, 300, "machineFrame").setScale(2);
 
         // 2) 建立三個捲軸容器
-        //    參考你給的位置： x=400±145, y=300-55
+        //    參考你給的位置： x=400±145, y=300-50
         const reelPositions = [
-          { x: 400 - 145, y: 300 - 55 },
-          { x: 400,       y: 300 - 55 },
-          { x: 400 + 145, y: 300 - 55 }
+          { x: 400 - 145, y: 300 - 50 },
+          { x: 400,       y: 300 - 50 },
+          { x: 400 + 145, y: 300 - 50 }
         ];
 
         // 每個捲軸容器 => 放 3 個 sprite (上下排列)
         // 中間那個 sprite 對應外框視窗
         reelPositions.forEach(pos => {
           let reelContainer = scene.add.container(pos.x, pos.y);
-          
+
           // 3 個 sprite，間距 ~ 60
           //   sprite0: y = -60 (上方)
           //   sprite1: y = 0   (中間, 可視範圍)
           //   sprite2: y = 60  (下方)
           let possibleKeys = ["symbol1","symbol2","symbol3","symbol4","wild"];
-          for(let i=0; i<3; i++){
+          for (let i = 0; i < 3; i++) {
             let randKey = Phaser.Utils.Array.GetRandom(possibleKeys);
-            let spr = scene.add.sprite(0, (i-1)*60, randKey);
+            let spr = scene.add.sprite(0, (i - 1) * 80, randKey);
             reelContainer.add(spr);
           }
 
@@ -95,7 +95,7 @@
         .setInteractive();
 
         spinButton.on('pointerdown', () => {
-          if(!spinning){
+          if (!spinning) {
             startSpinAPI(scene, userId, 10);
           }
         });
@@ -108,7 +108,7 @@
       // =========================================
       // 呼叫後端 API
       // =========================================
-      function startSpinAPI(scene, userId, bet){
+      function startSpinAPI(scene, userId, bet) {
         spinning = true;
 
         fetch("/casino/slot/spin/", {
@@ -121,14 +121,16 @@
         })
         .then(res => res.json())
         .then(data => {
-          if(data.error){
+          if (data.error) {
             alert(data.error);
             spinning = false;
             return;
           }
           // data: { reels: [...], win_amount, current_points }
           // reels 例如 ["symbol2","wild","symbol1"]
-          spinAllReels(this.scene, data.reels, data.win_amount, data.current_points);
+
+          // ★★ 核心修正：使用函式參數 scene，而不是 this.scene
+          spinAllReels(scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
           console.error("API Error:", err);
@@ -139,19 +141,19 @@
       // =========================================
       // 真實轉動: 每個捲軸容器上下移動 2秒, 結束後顯示最終符號
       // =========================================
-      function spinAllReels(scene, reelResults, win, newPoints){
+      function spinAllReels(scene, reelResults, win, newPoints) {
         let completed = 0;
         let duration = 2000; // 2 秒
 
         reelContainers.forEach((container, i) => {
           spinOneReel(scene, container, reelResults[i], duration, () => {
             completed++;
-            if(completed === reelContainers.length){
+            if (completed === reelContainers.length) {
               // 全部捲軸都停下
               spinning = false;
               currentPoints = newPoints;
               scene.pointText.setText(`Points: ${currentPoints}`);
-              if(win > 0){
+              if (win > 0) {
                 alert(`恭喜贏了 ${win} 點!`);
               }
             }
@@ -163,7 +165,7 @@
        * 對單一捲軸容器做短暫的「向下滾動」，超出下邊的 sprite 移回上面，循環數秒
        * 結束後在中間 sprite 顯示後端傳回的結果 finalKey
        */
-      function spinOneReel(scene, reelContainer, finalKey, duration, onStop){
+      function spinOneReel(scene, reelContainer, finalKey, duration, onStop) {
         let startTime = scene.time.now;
         let spinEvent = scene.time.addEvent({
           delay: 80,   // 每80 ms 更新一次
@@ -172,9 +174,9 @@
             // 向下移動
             reelContainer.list.forEach(spr => {
               spr.y += 10; // 速度
-              if(spr.y > 60){ 
+              if (spr.y > 60) {
                 // 超過下邊, 移到最上方 -120
-                spr.y -= 180; 
+                spr.y -= 180;
                 // 換個隨機符號, 模擬不斷滾動
                 let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
                 spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
@@ -182,14 +184,11 @@
             });
 
             // 若超過duration => 停止
-            if(scene.time.now - startTime >= duration){
+            if (scene.time.now - startTime >= duration) {
               spinEvent.remove();
 
               // 校正位置 => 讓中間 sprite 在 y=0
-              // 我們找最接近 y=0 的 sprite 當「中間」, 把其餘 sprite 位置調整
               let middleSpr = findClosestToZero(reelContainer);
-              // middleSpr.y 可能不是 0, 
-              // 所以我們做個 offset = middleSpr.y
               let offset = middleSpr.y;
               reelContainer.list.forEach(spr => {
                 spr.y -= offset;
@@ -199,19 +198,19 @@
               middleSpr.setTexture(finalKey);
 
               // 完成後呼叫回調
-              if(onStop) onStop();
+              if (onStop) onStop();
             }
           }
         });
       }
 
       // 輔助函式：找出 container 中最接近 y=0 的 sprite (表示中間)
-      function findClosestToZero(container){
+      function findClosestToZero(container) {
         let target = null;
         let minDist = Number.MAX_VALUE;
         container.list.forEach(spr => {
           let dist = Math.abs(spr.y);
-          if(dist < minDist){
+          if (dist < minDist) {
             minDist = dist;
             target = spr;
           }
