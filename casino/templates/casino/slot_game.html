@@ -15,6 +15,7 @@
       假設在 views.py -> slot_game 傳來: {"user_id": ..., "points": ...}
     -->
     <script>
+      // 若 user_id 在後端未設定，預設 0；若 points 未設定，預設 0。
       let userId = {{ user_id|default:0 }};
       let currentPoints = {{ points|default:0 }};
     </script>
@@ -33,13 +34,19 @@
         }
       };
 
+      // 建立 Phaser 遊戲實例
       const game = new Phaser.Game(config);
 
+      // 全域變數
       let reels = [];
       let spinning = false;
 
-      function preload(){
+      // ======================
+      // 1) preload
+      // ======================
+      function preload() {
         // 預載符號圖檔 (請確保這些檔案在 /static/casino/ 下)
+        // 若檔案路徑或名稱不同，請同步調整
         this.load.image("symbol1", "/static/casino/symbol1.png");
         this.load.image("symbol2", "/static/casino/symbol2.png");
         this.load.image("symbol3", "/static/casino/symbol3.png");
@@ -47,45 +54,67 @@
         this.load.image("wild",    "/static/casino/wild.png");
       }
 
-      function create(){
+      // ======================
+      // 2) create
+      // ======================
+      function create() {
+        // 以 scene 代表當前 Phaser.Scene
         const scene = this;
 
-        // 建立3個捲軸(初始用 symbol1)
-        for(let i=0; i<3; i++){
-          let s = scene.add.sprite(200 + i*150, 250, "symbol1");
-          reels.push(s);
+        // 建立3個捲軸(先用 symbol1 當初始圖)
+        for (let i = 0; i < 3; i++) {
+          let sprite = scene.add.sprite(200 + i * 150, 250, "symbol1");
+          reels.push(sprite);
         }
 
-        // Spin 按鈕 (示範，壓 10 點)
+        // 顯示當前積分
+        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
+          fontSize: '24px',
+          color: '#FFD700'
+        });
+
+        // 建立「SPIN」按鈕
         const spinButton = scene.add.text(350, 500, "SPIN", {
           fontSize: '32px',
           backgroundColor: '#cc0000',
           color: '#fff',
-          padding: { x:20, y:10 }
+          padding: { x: 20, y: 10 }
         }).setInteractive();
 
+        // 按鈕事件：點擊後若未在旋轉狀態，呼叫後端 API
         spinButton.on('pointerdown', () => {
           console.log("Spin button clicked!");
-          if(!spinning){
-            startSpinAPI.call(scene, userId, 10);
+          if (!spinning) {
+            startSpinAPI(scene, userId, 10);
           }
         });
-
-        // 在畫面左上顯示當前積分
-        scene.pointText = scene.add.text(10, 10, "Points: " + currentPoints, {
-          fontSize: '24px',
-          color: '#FFD700'
-        });
       }
 
-      function update(){
-        // 每幀更新 (目前無需要)
+      // ======================
+      // 3) update (每禎呼叫)
+      // ======================
+      function update() {
+        // 此範例暫無需要在這裡處理邏輯
       }
 
-      // 呼叫後端 POST /casino/slot/spin/
-      function startSpinAPI(userId, bet){
+      // ======================
+      // 4) 呼叫後端 API
+      // ======================
+      /**
+       * 向 /casino/slot/spin/ 發送 POST 請求:
+       *   - userId: 後端辨識玩家
+       *   - bet:  下注額
+       * 收到回應後若沒 error，執行 animateReels
+       */
+      function startSpinAPI(scene, userId, bet) {
         spinning = true;
-        const scene = this;
+
+        // 若 userId=0 通常表示未登入或無效使用者，直接提示並結束
+        if (userId === 0) {
+          alert("尚未登入或 userId 無效，請先登入！");
+          spinning = false;
+          return;
+        }
 
         fetch("/casino/slot/spin/", {
           method: "POST",
@@ -99,13 +128,14 @@
         })
         .then(res => res.json())
         .then(data => {
-          if(data.error){
+          if (data.error) {
+            // 例如 "User not found", "Not enough points", ...
             alert(data.error);
             spinning = false;
             return;
           }
-          // data: { reels, win_amount, current_points }
-          animateReels(data.reels, data.win_amount, data.current_points);
+          // 預期 data: { reels: [...], win_amount: Number, current_points: Number }
+          animateReels(scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
           console.error("API Error:", err);
@@ -113,29 +143,33 @@
         });
       }
 
-      // 用簡單的 tween 模擬「上下晃動」轉動後，最後換成後端回傳的符號
-      function animateReels(reelResult, win, newPoints){
-        const scene = this;
+      // ======================
+      // 5) 動畫處理
+      // ======================
+      /**
+       * 讓捲軸 sprite 做上下晃動的 tween，結束後換成後端回傳符號。
+       * 最後更新分數 & 顯示中獎提示。
+       */
+      function animateReels(scene, reelResult, win, newPoints) {
         reels.forEach((sprite, index) => {
           scene.tweens.add({
             targets: sprite,
-            y: sprite.y + 200,
-            duration: 200,
-            repeat: 3,
-            yoyo: true,
+            y: sprite.y + 200,    // 向下移動 200
+            duration: 200,        // 單次動畫時長
+            repeat: 3,            // 重複 3 次
+            yoyo: true,           // 完成後反向回來
             onComplete: () => {
-              // 動畫結束後換成最終符號
+              // 更換為後端給的最終符號
               sprite.setTexture(reelResult[index]);
 
-              // 若是最後一個捲軸
-              if(index === reels.length - 1){
+              // 若是最後一個捲軸完成
+              if (index === reels.length - 1) {
                 spinning = false;
-                // 更新畫面中的分數顯示
                 currentPoints = newPoints;
                 scene.pointText.setText("Points: " + currentPoints);
 
-                if(win > 0){
-                  alert("恭喜贏了 " + win + " 點!");
+                if (win > 0) {
+                  alert(`恭喜贏了 ${win} 點!`);
                 }
               }
             }
