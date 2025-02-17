@@ -3,25 +3,21 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機 Demo</title>
-    <!-- 引入 Phaser (可依需求版本替換) -->
+    <title>拉霸機 Demo (改良版)</title>
+    <!-- 引入 Phaser 3 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   </head>
   <body style="background: #222; color: #fff; margin:0;">
     <div id="game-container"></div>
 
-    <!-- 
-      透過 Django 模板變數，把 user_id 和 points 注入到 JavaScript 變數中。
-      假設在 views.py -> slot_game 傳來: {"user_id": ..., "points": ...}
-    -->
+    <!-- Django 模板變數：user_id, points -->
     <script>
-      // 若 user_id 在後端未設定，預設 0；若 points 未設定，預設 0。
       let userId = {{ user_id|default:0 }};
       let currentPoints = {{ points|default:0 }};
     </script>
 
     <script>
-      // Phaser 遊戲設定
+      // Phaser 設定
       const config = {
         type: Phaser.AUTO,
         width: 800,
@@ -33,20 +29,16 @@
           update: update
         }
       };
-
-      // 建立 Phaser 遊戲實例
       const game = new Phaser.Game(config);
 
       // 全域變數
-      let reels = [];
+      let reelContainers = [];  // 3 個捲軸的容器
       let spinning = false;
 
-      // ======================
-      // 1) preload
-      // ======================
       function preload() {
-        // 預載符號圖檔 (請確保這些檔案在 /static/casino/ 下)
-        // 若檔案路徑或名稱不同，請同步調整
+        // 載入外框圖
+        this.load.image("machineFrame", "/static/casino/slot_frame.png"); 
+        // 載入符號
         this.load.image("symbol1", "/static/casino/symbol1.png");
         this.load.image("symbol2", "/static/casino/symbol2.png");
         this.load.image("symbol3", "/static/casino/symbol3.png");
@@ -54,26 +46,35 @@
         this.load.image("wild",    "/static/casino/wild.png");
       }
 
-      // ======================
-      // 2) create
-      // ======================
       function create() {
-        // 以 scene 代表當前 Phaser.Scene
         const scene = this;
 
-        // 建立3個捲軸(先用 symbol1 當初始圖)
-        for (let i = 0; i < 3; i++) {
-          let sprite = scene.add.sprite(200 + i * 150, 250, "symbol1");
-          reels.push(sprite);
+        // 1) 加入拉霸機外框 (中心放在 400,300；可微調)
+        const frame = scene.add.image(400, 300, "machineFrame");
+        frame.setDepth(0); // 在最底層
+
+        // 2) 建立三個捲軸容器 (示範 x=260, 400, 540; y=180)
+        //   每個容器裡放 4 張符號 sprite，垂直分佈
+        const startX = [260, 400, 540];
+        for(let i=0; i<3; i++){
+          let reelContainer = scene.add.container(startX[i], 180);
+          // 塞 4 張預設符號
+          for(let j=0; j<4; j++){
+            let randKey = Phaser.Utils.Array.GetRandom(["symbol1","symbol2","symbol3","symbol4","wild"]);
+            let spr = scene.add.sprite(0, j*100, randKey);
+            reelContainer.add(spr);
+          }
+          reelContainer.setDepth(1); 
+          reelContainers.push(reelContainer);
         }
 
-        // 顯示當前積分
+        // 3) 顯示當前積分
         scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
           fontSize: '24px',
           color: '#FFD700'
         });
 
-        // 建立「SPIN」按鈕
+        // 4) Spin 按鈕
         const spinButton = scene.add.text(350, 500, "SPIN", {
           fontSize: '32px',
           backgroundColor: '#cc0000',
@@ -81,46 +82,32 @@
           padding: { x: 20, y: 10 }
         }).setInteractive();
 
-        // 按鈕事件：點擊後若未在旋轉狀態，呼叫後端 API
         spinButton.on('pointerdown', () => {
           console.log("Spin button clicked!");
-          if (!spinning) {
+          if(!spinning) {
             startSpinAPI(scene, userId, 10);
           }
         });
       }
 
-      // ======================
-      // 3) update (每禎呼叫)
-      // ======================
       function update() {
-        // 此範例暫無需要在這裡處理邏輯
+        // 不需要做什麼
       }
 
-      // ======================
-      // 4) 呼叫後端 API
-      // ======================
-      /**
-       * 向 /casino/slot/spin/ 發送 POST 請求:
-       *   - userId: 後端辨識玩家
-       *   - bet:  下注額
-       * 收到回應後若沒 error，執行 animateReels
-       */
-      function startSpinAPI(scene, userId, bet) {
+      // ================
+      // 呼叫後端 API
+      // ================
+      function startSpinAPI(scene, userId, bet){
         spinning = true;
-
-        // 若 userId=0 通常表示未登入或無效使用者，直接提示並結束
-        if (userId === 0) {
-          alert("尚未登入或 userId 無效，請先登入！");
+        if(userId === 0){
+          alert("尚未登入或 userId 無效！");
           spinning = false;
           return;
         }
 
         fetch("/casino/slot/spin/", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             user_id: userId,
             bet: bet
@@ -128,14 +115,16 @@
         })
         .then(res => res.json())
         .then(data => {
-          if (data.error) {
-            // 例如 "User not found", "Not enough points", ...
+          if(data.error){
             alert(data.error);
             spinning = false;
             return;
           }
-          // 預期 data: { reels: [...], win_amount: Number, current_points: Number }
-          animateReels(scene, data.reels, data.win_amount, data.current_points);
+          // data: { reels: [...], win_amount, current_points }
+          // reels 例如 ["symbol2","wild","symbol1"]
+
+          // 5) 執行更逼真的轉動
+          spinAllReels(scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
           console.error("API Error:", err);
@@ -143,37 +132,77 @@
         });
       }
 
-      // ======================
-      // 5) 動畫處理
-      // ======================
+      // ================
+      // 真實轉動
+      // ================
       /**
-       * 讓捲軸 sprite 做上下晃動的 tween，結束後換成後端回傳符號。
-       * 最後更新分數 & 顯示中獎提示。
+       * 依序轉動三個捲軸，最後停在後端指定的 reels 結果
        */
-      function animateReels(scene, reelResult, win, newPoints) {
-        reels.forEach((sprite, index) => {
-          scene.tweens.add({
-            targets: sprite,
-            y: sprite.y + 200,    // 向下移動 200
-            duration: 200,        // 單次動畫時長
-            repeat: 3,            // 重複 3 次
-            yoyo: true,           // 完成後反向回來
-            onComplete: () => {
-              // 更換為後端給的最終符號
-              sprite.setTexture(reelResult[index]);
-
-              // 若是最後一個捲軸完成
-              if (index === reels.length - 1) {
-                spinning = false;
-                currentPoints = newPoints;
-                scene.pointText.setText("Points: " + currentPoints);
-
-                if (win > 0) {
-                  alert(`恭喜贏了 ${win} 點!`);
-                }
+      function spinAllReels(scene, reelResult, win, newPoints){
+        // 設定每個捲軸轉動時間 & 延遲
+        // 例如：第一個 2 秒 -> 第二個 2.5 秒 -> 第三個 3 秒
+        let durations = [2000, 2500, 3000];
+        reelContainers.forEach((reelC, index) => {
+          spinReel(scene, reelC, durations[index], reelResult[index], () => {
+            // 當最後一個捲軸也停下來
+            if(index === reelContainers.length - 1){
+              spinning = false;
+              currentPoints = newPoints;
+              scene.pointText.setText(`Points: ${currentPoints}`);
+              if(win > 0){
+                alert(`恭喜贏了 ${win} 點!`);
               }
             }
           });
+        });
+      }
+
+      /**
+       * 轉動單一捲軸 (reelContainer)，於 duration 毫秒後停止，
+       * 最後一格對準 finalSymbol。
+       */
+      function spinReel(scene, reelContainer, duration, finalSymbol, onStop){
+        // 每 80 ms 移動一次
+        let speed = 30; // 每次移動多少像素
+        let event = scene.time.addEvent({
+          delay: 80,
+          loop: true,
+          callback: () => {
+            reelContainer.y += speed;
+            // 若任何 sprite 超過某閾值，就移回上方
+            reelContainer.list.forEach(spr => {
+              let globalY = reelContainer.y + spr.y;
+              if(globalY > 600){ // 600=遊戲高度
+                spr.y -= 400; // 4張*100=400
+                // 隨機換符號 => 模擬持續滾動
+                let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
+                spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
+              }
+            });
+          }
+        });
+
+        // duration 毫秒後停止轉動
+        scene.time.delayedCall(duration, () => {
+          event.remove(); // 停止上述 callback
+          // 校正捲軸位置 => reelContainer.y % 100
+          let offset = reelContainer.y % 100;
+          reelContainer.y -= offset; // 對齊
+
+          // 把「容器中最上方(或中間)的 sprite」換成 finalSymbol
+          // 這裡視你的顯示範圍而定：如果畫面中顯示第 1 格，就把它改 finalSymbol
+          let topSprite = reelContainer.list[0];
+          // 由於可能被移動過，你可以找「最接近 180~280」的 sprite 來換
+          // 這裡簡化直接改 [0]
+          topSprite.setTexture(finalSymbol);
+
+          // 可視需求再微調 spr.y, reelContainer.y 使 finalSymbol 保持在可見範圍
+          // ...
+
+          // 呼叫完成後的回調
+          if(typeof onStop === 'function'){
+            onStop();
+          }
         });
       }
     </script>
