@@ -30,77 +30,105 @@
       };
       const game = new Phaser.Game(config);
 
-      // 全域變數：每個捲軸是一個容器
+      // 全域變數：每個捲軸都是一個 "container" 中有 3 個 sprite
       let reelContainers = [];
       let spinning = false;
 
       function preload() {
-        // 載入外框圖 (229×102 放大兩倍)
+        // 載入外框圖 (229×102 => 兩倍)
         this.load.image("machineFrame", "/static/casino/slot_frame.png");
         // 載入符號
         this.load.image("symbol1", "/static/casino/symbol1.png");
         this.load.image("symbol2", "/static/casino/symbol2.png");
         this.load.image("symbol3", "/static/casino/symbol3.png");
         this.load.image("symbol4", "/static/casino/symbol4.png");
-        this.load.image("wild", "/static/casino/wild.png");
+        this.load.image("wild",    "/static/casino/wild.png");
       }
 
       function create() {
         const scene = this;
 
-        // 加入拉霸機外框
+        // 1) 放置外框
         const frame = scene.add.image(400, 300, "machineFrame").setScale(2);
 
-        // 建立三個捲軸容器，x 根據你給的位置
+        // 2) 建立三個捲軸容器
+        //    參考你給的位置： x=400±145, y=300-55
         const reelPositions = [
-          { x: 400 - 145, y: 300 - 42 },
-          { x: 400, y: 300 - 42 },
-          { x: 400 + 145, y: 300 - 42 }
+          { x: 400 - 145, y: 300 - 55 },
+          { x: 400,       y: 300 - 55 },
+          { x: 400 + 145, y: 300 - 55 }
         ];
 
+        // 每個捲軸容器 => 放 3 個 sprite (上下排列)
+        // 中間那個 sprite 對應外框視窗
         reelPositions.forEach(pos => {
           let reelContainer = scene.add.container(pos.x, pos.y);
-          reelContainers.push(reelContainer);
+          
+          // 3 個 sprite，間距 ~ 60
+          //   sprite0: y = -60 (上方)
+          //   sprite1: y = 0   (中間, 可視範圍)
+          //   sprite2: y = 60  (下方)
+          let possibleKeys = ["symbol1","symbol2","symbol3","symbol4","wild"];
+          for(let i=0; i<3; i++){
+            let randKey = Phaser.Utils.Array.GetRandom(possibleKeys);
+            let spr = scene.add.sprite(0, (i-1)*60, randKey);
+            reelContainer.add(spr);
+          }
 
-          // 每個容器初始放一個隨機符號
-          let symbol = scene.add.sprite(0, 0, Phaser.Utils.Array.GetRandom(["symbol1", "symbol2", "symbol3", "symbol4", "wild"]));
-          reelContainer.add(symbol);
+          reelContainers.push(reelContainer);
         });
 
-        // 顯示當前積分
-        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, { fontSize: '24px', color: '#FFD700' });
+        // 3) 顯示當前積分
+        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
+          fontSize: '24px',
+          color: '#FFD700'
+        });
 
-        // Spin 按鈕
-        const spinButton = scene.add.text(400, 500, "SPIN", { fontSize: '32px', backgroundColor: '#cc0000', color: '#fff', padding: { x: 20, y: 10 } })
-          .setInteractive()
-          .setOrigin(0.5);
+        // 4) Spin 按鈕
+        const spinButton = scene.add.text(400, 500, "SPIN", {
+          fontSize: '32px',
+          backgroundColor: '#cc0000',
+          color: '#fff',
+          padding: { x: 20, y: 10 }
+        })
+        .setOrigin(0.5)
+        .setInteractive();
 
-        spinButton.on('pointerdown', function () {
-          if (!spinning) {
+        spinButton.on('pointerdown', () => {
+          if(!spinning){
             startSpinAPI(scene, userId, 10);
           }
         });
       }
 
       function update() {
-        // 暫無更新需要
+        // 無特別需求
       }
 
-      function startSpinAPI(scene, userId, bet) {
+      // =========================================
+      // 呼叫後端 API
+      // =========================================
+      function startSpinAPI(scene, userId, bet){
         spinning = true;
+
         fetch("/casino/slot/spin/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ user_id: userId, bet: bet })
+          body: new URLSearchParams({
+            user_id: userId,
+            bet: bet
+          })
         })
         .then(res => res.json())
         .then(data => {
-          if (data.error) {
+          if(data.error){
             alert(data.error);
             spinning = false;
             return;
           }
-          spinAllReels(scene, data.reels, data.win_amount, data.current_points);
+          // data: { reels: [...], win_amount, current_points }
+          // reels 例如 ["symbol2","wild","symbol1"]
+          spinAllReels(this.scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
           console.error("API Error:", err);
@@ -108,36 +136,87 @@
         });
       }
 
-      function spinAllReels(scene, reelResults, win, newPoints) {
-        let spinsComplete = 0;
+      // =========================================
+      // 真實轉動: 每個捲軸容器上下移動 2秒, 結束後顯示最終符號
+      // =========================================
+      function spinAllReels(scene, reelResults, win, newPoints){
+        let completed = 0;
+        let duration = 2000; // 2 秒
 
-        reelContainers.forEach((container, index) => {
-          let symbol = container.list[0];  // 容器中的第一個元素（我們的符號）
-          let startY = symbol.y;
-
-          // 使用 tween 創造上下晃動效果
-          scene.tweens.add({
-            targets: symbol,
-            y: startY + 20,  // 上下移動 20px
-            duration: 100,
-            yoyo: true,
-            repeat: 10,  // 來回重複次數
-            onComplete: function () {
-              // 設置最終圖像
-              symbol.setTexture(reelResults[index]);
-              // 確認所有捲軸完成旋轉
-              spinsComplete++;
-              if (spinsComplete === reelContainers.length) {
-                spinning = false;
-                currentPoints = newPoints;
-                scene.pointText.setText(`Points: ${currentPoints}`);
-                if (win > 0) {
-                  alert(`恭喜贏了 ${win} 點!`);
-                }
+        reelContainers.forEach((container, i) => {
+          spinOneReel(scene, container, reelResults[i], duration, () => {
+            completed++;
+            if(completed === reelContainers.length){
+              // 全部捲軸都停下
+              spinning = false;
+              currentPoints = newPoints;
+              scene.pointText.setText(`Points: ${currentPoints}`);
+              if(win > 0){
+                alert(`恭喜贏了 ${win} 點!`);
               }
             }
           });
         });
+      }
+
+      /**
+       * 對單一捲軸容器做短暫的「向下滾動」，超出下邊的 sprite 移回上面，循環數秒
+       * 結束後在中間 sprite 顯示後端傳回的結果 finalKey
+       */
+      function spinOneReel(scene, reelContainer, finalKey, duration, onStop){
+        let startTime = scene.time.now;
+        let spinEvent = scene.time.addEvent({
+          delay: 80,   // 每80 ms 更新一次
+          loop: true,
+          callback: () => {
+            // 向下移動
+            reelContainer.list.forEach(spr => {
+              spr.y += 10; // 速度
+              if(spr.y > 60){ 
+                // 超過下邊, 移到最上方 -120
+                spr.y -= 180; 
+                // 換個隨機符號, 模擬不斷滾動
+                let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
+                spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
+              }
+            });
+
+            // 若超過duration => 停止
+            if(scene.time.now - startTime >= duration){
+              spinEvent.remove();
+
+              // 校正位置 => 讓中間 sprite 在 y=0
+              // 我們找最接近 y=0 的 sprite 當「中間」, 把其餘 sprite 位置調整
+              let middleSpr = findClosestToZero(reelContainer);
+              // middleSpr.y 可能不是 0, 
+              // 所以我們做個 offset = middleSpr.y
+              let offset = middleSpr.y;
+              reelContainer.list.forEach(spr => {
+                spr.y -= offset;
+              });
+
+              // 最後把 "中間" 那個 sprite 改成 finalKey
+              middleSpr.setTexture(finalKey);
+
+              // 完成後呼叫回調
+              if(onStop) onStop();
+            }
+          }
+        });
+      }
+
+      // 輔助函式：找出 container 中最接近 y=0 的 sprite (表示中間)
+      function findClosestToZero(container){
+        let target = null;
+        let minDist = Number.MAX_VALUE;
+        container.list.forEach(spr => {
+          let dist = Math.abs(spr.y);
+          if(dist < minDist){
+            minDist = dist;
+            target = spr;
+          }
+        });
+        return target;
       }
     </script>
   </body>
