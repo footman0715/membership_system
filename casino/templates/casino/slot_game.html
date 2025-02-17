@@ -62,9 +62,9 @@
         // 3) 建立三個捲軸容器
         //    參考你給的位置： x=400±145, y=300+10
         const reelPositions = [
-          { x: 400 - 145, y: 300 + 10 },
-          { x: 400,       y: 300 + 10 },
-          { x: 400 + 145, y: 300 + 10 }
+          { x: 400 - 145, y: 300 + 1  },
+          { x: 400,       y: 300 + 1  },
+          { x: 400 + 145, y: 300 + 1  }
         ];
 
         reelPositions.forEach(pos => {
@@ -75,7 +75,7 @@
           let possibleKeys = ["symbol1","symbol2","symbol3","symbol4","wild"];
           for (let i = 0; i < 3; i++) {
             let randKey = Phaser.Utils.Array.GetRandom(possibleKeys);
-            let spr = scene.add.sprite(0, (i - 1) * 120, randKey);
+            let spr = scene.add.sprite(0, (i - 1) * 80, randKey);
             reelContainer.add(spr);
           }
 
@@ -178,9 +178,9 @@
             // 向下移動
             reelContainer.list.forEach(spr => {
               spr.y += 1000; // 速度
-              if (spr.y > 65) {
+              if (spr.y > 80) {
                 // 超過下邊, 移到最上方 -160 (因為間距是80*2)
-                spr.y -= 195; 
+                spr.y -= 240; 
                 // 換個隨機符號, 模擬不斷滾動
                 let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
                 spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
