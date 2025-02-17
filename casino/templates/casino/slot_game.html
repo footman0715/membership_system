@@ -35,7 +35,7 @@
       let spinning = false;
 
       function preload() {
-        // 載入外框圖 (229×102 => 兩倍)
+        // 載入外框圖 (229×102 => 放大2倍)
         this.load.image("machineFrame", "/static/casino/slot_frame.png");
         // 載入符號
         this.load.image("symbol1", "/static/casino/symbol1.png");
@@ -47,53 +47,57 @@
 
       function create() {
         const scene = this;
-        // 1) 放置外框
-        const frame = scene.add.image(400, 300, "machineFrame").setScale(2);
 
         // ---------------------------------------------------
-        // 2) 建立一個矩形當「可視範圍」，然後做 geometryMask
-        //    以下數字要依你的機台位置微調
+        // 1) 建立一個矩形當「可視範圍」(geometryMask)，只顯示該範圍內的捲軸
+        //    可依實際圖的大小和位置做微調
         // ---------------------------------------------------
         const maskRect = scene.add.rectangle(400, 300, 450, 190, 0x00ff00);
-        maskRect.setVisible(false);  // 不顯示綠色方塊，只做mask用
+        maskRect.setVisible(false); // 不顯示綠色方塊，只用來做 mask
         const reelMask = maskRect.createGeometryMask();
 
         // ---------------------------------------------------
-        // 3) 先建立三個捲軸容器 (depth=0)
+        // 2) 建立三個捲軸容器 (depth=0) 並套用 mask
+        //    例如中心點 y=300 - 10, spacing=80
         // ---------------------------------------------------
         const reelPositions = [
-          { x: 400 - 145, y: 300 - 10  },
-          { x: 400,       y: 300 - 10  },
-          { x: 400 + 145, y: 300 - 10  }
+          { x: 400 - 145, y: 300 - 10 },
+          { x: 400,       y: 300 - 10 },
+          { x: 400 + 145, y: 300 - 10 }
         ];
+
         reelPositions.forEach(pos => {
           let reelContainer = scene.add.container(pos.x, pos.y).setDepth(0);
 
           let possibleKeys = ["symbol1","symbol2","symbol3","symbol4","wild"];
-          // 建立 3 個 sprite (上、中、下)，依你的 spacing
+          // 建立 3 個 sprite (上、中、下)，上下相隔 80
           for (let i = 0; i < 3; i++) {
             let randKey = Phaser.Utils.Array.GetRandom(possibleKeys);
             let spr = scene.add.sprite(0, (i - 1) * 80, randKey);
             reelContainer.add(spr);
           }
+
+          // ★ 將該捲軸容器套用 geometryMask
+          reelContainer.setMask(reelMask);
+
           reelContainers.push(reelContainer);
         });
 
         // ---------------------------------------------------
-        // 4) 再建立外框 (depth=10)
+        // 3) 建立外框圖 (depth=10)，蓋在捲軸之上
         // ---------------------------------------------------
         const frame = scene.add
           .image(400, 300, "machineFrame")
           .setScale(2)
-          .setDepth(10); // 外框深度高於捲軸
+          .setDepth(10); // 外框深度高於捲軸容器
 
-        // 顯示當前積分
+        // 4) 顯示當前積分
         scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
           fontSize: '24px',
           color: '#FFD700'
         });
 
-        // 建立 Spin 按鈕
+        // 5) 建立 Spin 按鈕
         const spinButton = scene.add.text(400, 500, "SPIN", {
           fontSize: '32px',
           backgroundColor: '#cc0000',
@@ -155,6 +159,7 @@
           spinOneReel(scene, container, reelResults[i], duration, () => {
             completed++;
             if (completed === reelContainers.length) {
+              // 全部捲軸都停下
               spinning = false;
               currentPoints = newPoints;
               scene.pointText.setText(`Points: ${currentPoints}`);
@@ -175,23 +180,28 @@
           delay: 80,
           loop: true,
           callback: () => {
+            // 捲軸往下移
             reelContainer.list.forEach(spr => {
-              spr.y += 10; 
-              if (spr.y > 48) {
-                spr.y -= 144; 
+              spr.y += 10;
+              if (spr.y > 80) {
+                // 超出下邊 => 移到最上邊
+                spr.y -= 240; // 80*3
                 let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
                 spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
               }
             });
 
+            // 時間到 => 停止
             if (scene.time.now - startTime >= duration) {
               spinEvent.remove();
+
               // 校正位置 => 中間 sprite y=0
               let middleSpr = findClosestToZero(reelContainer);
               let offset = middleSpr.y;
               reelContainer.list.forEach(spr => {
                 spr.y -= offset;
               });
+
               // 中間 sprite 改成 finalKey
               middleSpr.setTexture(finalKey);
 
@@ -201,6 +211,7 @@
         });
       }
 
+      // 找出 container 中最接近 y=0 的 sprite
       function findClosestToZero(container) {
         let target = null;
         let minDist = Infinity;
