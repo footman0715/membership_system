@@ -30,113 +30,77 @@
       };
       const game = new Phaser.Game(config);
 
-      // 全域變數：3 個捲軸的 sprite (簡化成 3×1)
-      let reelSprites = [];  
+      // 全域變數：每個捲軸是一個容器
+      let reelContainers = [];
       let spinning = false;
 
       function preload() {
-        // 載入外框圖 (229×102)
-        this.load.image("machineFrame", "/static/casino/slot_frame.png"); 
-
+        // 載入外框圖 (229×102 放大兩倍)
+        this.load.image("machineFrame", "/static/casino/slot_frame.png");
         // 載入符號
-        this.load.image("symbol1", "/static/casino/symbol1.png"); // 40x53
-        this.load.image("symbol2", "/static/casino/symbol2.png"); // 53x57
-        this.load.image("symbol3", "/static/casino/symbol3.png"); // 63x66
-        this.load.image("symbol4", "/static/casino/symbol4.png"); // 66x54
-        this.load.image("wild",    "/static/casino/wild.png");    // 51x24
-        this.load.image("symbol15","/static/casino/symbol15.png"); // 45x54 (可能其他素材)
+        this.load.image("symbol1", "/static/casino/symbol1.png");
+        this.load.image("symbol2", "/static/casino/symbol2.png");
+        this.load.image("symbol3", "/static/casino/symbol3.png");
+        this.load.image("symbol4", "/static/casino/symbol4.png");
+        this.load.image("wild", "/static/casino/wild.png");
       }
 
       function create() {
         const scene = this;
 
-        // 1) 加入拉霸機外框
-        // 原圖 229×102 => 我們放大 2 倍 => 458×204
-        // 讓它中心在(400,300)
-        const frame = scene.add.image(400, 300, "machineFrame");
-        frame.setScale(2);
-        frame.setDepth(0); 
+        // 加入拉霸機外框
+        const frame = scene.add.image(400, 300, "machineFrame").setScale(2);
 
-        // 2) 建立 3 個捲軸 sprite，各放在外框的 3 個格子中
-        //    由於外框現在寬約 458，高約 204，我們假設 3 個格子 X 分佈：
-        //    left: 400 - 80,  middle: 400, right: 400 + 80
-        //    Y 大約 300 (中心)
-        const reelPositions = [ 
-          { x: 400 - 80, y: 300 }, 
-          { x: 400,      y: 300 }, 
-          { x: 400 + 80, y: 300 } 
+        // 建立三個捲軸容器，x 根據你給的位置
+        const reelPositions = [
+          { x: 400 - 145, y: 300 - 42 },
+          { x: 400, y: 300 - 42 },
+          { x: 400 + 145, y: 300 - 42 }
         ];
 
-        reelPositions.forEach((pos, i) => {
-          // 隨機給一個 symbol
-          const randKey = Phaser.Utils.Array.GetRandom(["symbol1","symbol2","symbol3","symbol4","wild","symbol15"]);
-          // 建立 sprite
-          let reelSprite = scene.add.sprite(pos.x, pos.y, randKey);
-          reelSprite.setDepth(1); 
-          reelSprites.push(reelSprite);
+        reelPositions.forEach(pos => {
+          let reelContainer = scene.add.container(pos.x, pos.y);
+          reelContainers.push(reelContainer);
+
+          // 每個容器初始放一個隨機符號
+          let symbol = scene.add.sprite(0, 0, Phaser.Utils.Array.GetRandom(["symbol1", "symbol2", "symbol3", "symbol4", "wild"]));
+          reelContainer.add(symbol);
         });
 
-        // 3) 顯示當前積分
-        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
-          fontSize: '24px',
-          color: '#FFD700'
-        });
+        // 顯示當前積分
+        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, { fontSize: '24px', color: '#FFD700' });
 
-        // 4) Spin 按鈕 (放在外框下方)
-        //    外框底部約 = 300 + (frame.displayHeight/2) = 300+102=402
-        //    我們再往下 40 => y=442
-        const spinButton = scene.add.text(400, 440, "SPIN", {
-          fontSize: '32px',
-          backgroundColor: '#cc0000',
-          color: '#fff',
-          padding: { x: 20, y: 10 }
-        })
-        .setInteractive()
-        .setOrigin(0.5); // 文字居中
+        // Spin 按鈕
+        const spinButton = scene.add.text(400, 500, "SPIN", { fontSize: '32px', backgroundColor: '#cc0000', color: '#fff', padding: { x: 20, y: 10 } })
+          .setInteractive()
+          .setOrigin(0.5);
 
-        spinButton.on('pointerdown', () => {
-          console.log("Spin button clicked!");
-          if(!spinning) {
+        spinButton.on('pointerdown', function () {
+          if (!spinning) {
             startSpinAPI(scene, userId, 10);
           }
         });
       }
 
       function update() {
-        // 此版本不需要在每帧做事
+        // 暫無更新需要
       }
 
-      // ======================================
-      // 呼叫後端 API (與派彩邏輯不變)
-      // ======================================
-      function startSpinAPI(scene, userId, bet){
+      function startSpinAPI(scene, userId, bet) {
         spinning = true;
-        if(userId === 0){
-          alert("尚未登入或 userId 無效！");
-          spinning = false;
-          return;
-        }
-
         fetch("/casino/slot/spin/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            user_id: userId,
-            bet: bet
-          })
+          body: new URLSearchParams({ user_id: userId, bet: bet })
         })
         .then(res => res.json())
         .then(data => {
-          if(data.error){
+          if (data.error) {
             alert(data.error);
             spinning = false;
             return;
           }
-          // data: { reels: [...], win_amount, current_points }
-          // reels 例如 ["symbol2","wild","symbol1"]
-
-          // 簡化：直接換 sprite 貼圖 (無滾動動畫)
-          spinReels(scene, data.reels, data.win_amount, data.current_points);
+          spinAllReels(scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
           console.error("API Error:", err);
@@ -144,25 +108,36 @@
         });
       }
 
-      // ======================================
-      // 真實轉動 (簡化為：直接替換 sprite)
-      // ======================================
-      // 如果你還想要 "上下晃動" or "容器輪播" 效果，就自行再加 tween
-      function spinReels(scene, resultSymbols, win, newPoints){
-        // 1) 暫時用最簡單邏輯：直接改 3 個 sprite 貼圖
-        reelSprites.forEach((sp, i) => {
-          sp.setTexture(resultSymbols[i]); 
+      function spinAllReels(scene, reelResults, win, newPoints) {
+        let spinsComplete = 0;
+
+        reelContainers.forEach((container, index) => {
+          let symbol = container.list[0];  // 容器中的第一個元素（我們的符號）
+          let startY = symbol.y;
+
+          // 使用 tween 創造上下晃動效果
+          scene.tweens.add({
+            targets: symbol,
+            y: startY + 20,  // 上下移動 20px
+            duration: 100,
+            yoyo: true,
+            repeat: 10,  // 來回重複次數
+            onComplete: function () {
+              // 設置最終圖像
+              symbol.setTexture(reelResults[index]);
+              // 確認所有捲軸完成旋轉
+              spinsComplete++;
+              if (spinsComplete === reelContainers.length) {
+                spinning = false;
+                currentPoints = newPoints;
+                scene.pointText.setText(`Points: ${currentPoints}`);
+                if (win > 0) {
+                  alert(`恭喜贏了 ${win} 點!`);
+                }
+              }
+            }
+          });
         });
-
-        // 2) 更新分數
-        spinning = false;
-        currentPoints = newPoints;
-        scene.pointText.setText(`Points: ${currentPoints}`);
-
-        // 3) 中獎提示
-        if(win > 0){
-          alert(`恭喜贏了 ${win} 點!`);
-        }
       }
     </script>
   </body>
