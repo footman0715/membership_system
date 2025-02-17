@@ -51,23 +51,27 @@
         // 1) 放置外框
         const frame = scene.add.image(400, 300, "machineFrame").setScale(2);
 
-        // 2) 建立三個捲軸容器
-        //    參考你給的位置： x=400±145, y=300-50
+        // ---------------------------------------------------
+        // 2) 建立一個矩形當「可視範圍」，然後做 geometryMask
+        //    以下數字要依你的機台位置微調
+        // ---------------------------------------------------
+        const maskRect = scene.add.rectangle(400, 300, 450, 120, 0x00ff00);
+        maskRect.setVisible(false);  // 不顯示綠色方塊，只做mask用
+        const reelMask = maskRect.createGeometryMask();
+
+        // 3) 建立三個捲軸容器
+        //    參考你給的位置： x=400±145, y=300-45
         const reelPositions = [
-          { x: 400 - 145, y: 300 - 50 },
-          { x: 400,       y: 300 - 50 },
-          { x: 400 + 145, y: 300 - 50 }
+          { x: 400 - 145, y: 300 - 45 },
+          { x: 400,       y: 300 - 45 },
+          { x: 400 + 145, y: 300 - 45 }
         ];
 
-        // 每個捲軸容器 => 放 3 個 sprite (上下排列)
-        // 中間那個 sprite 對應外框視窗
         reelPositions.forEach(pos => {
           let reelContainer = scene.add.container(pos.x, pos.y);
 
-          // 3 個 sprite，間距 ~ 60
-          //   sprite0: y = -60 (上方)
-          //   sprite1: y = 0   (中間, 可視範圍)
-          //   sprite2: y = 60  (下方)
+          // 建立 3 個 sprite (上、中、下)
+          // sprite0: y = -80, sprite1: y=0, sprite2: y=80 (可自行調整)
           let possibleKeys = ["symbol1","symbol2","symbol3","symbol4","wild"];
           for (let i = 0; i < 3; i++) {
             let randKey = Phaser.Utils.Array.GetRandom(possibleKeys);
@@ -75,16 +79,19 @@
             reelContainer.add(spr);
           }
 
+          // ★ 對該捲軸容器套用 mask
+          reelContainer.setMask(reelMask);
+
           reelContainers.push(reelContainer);
         });
 
-        // 3) 顯示當前積分
+        // 4) 顯示當前積分
         scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
           fontSize: '24px',
           color: '#FFD700'
         });
 
-        // 4) Spin 按鈕
+        // 5) Spin 按鈕
         const spinButton = scene.add.text(400, 500, "SPIN", {
           fontSize: '32px',
           backgroundColor: '#cc0000',
@@ -127,9 +134,6 @@
             return;
           }
           // data: { reels: [...], win_amount, current_points }
-          // reels 例如 ["symbol2","wild","symbol1"]
-
-          // ★★ 核心修正：使用函式參數 scene，而不是 this.scene
           spinAllReels(scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
@@ -174,9 +178,9 @@
             // 向下移動
             reelContainer.list.forEach(spr => {
               spr.y += 10; // 速度
-              if (spr.y > 60) {
-                // 超過下邊, 移到最上方 -120
-                spr.y -= 180;
+              if (spr.y > 80) {
+                // 超過下邊, 移到最上方 -160 (因為間距是80*2)
+                spr.y -= 240; 
                 // 換個隨機符號, 模擬不斷滾動
                 let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
                 spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
