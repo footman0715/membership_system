@@ -9,7 +9,8 @@
   <!-- 一般會員操作按鈕 -->
   <a href="{% url 'profile' %}" class="btn btn-secondary">會員資料</a>
   <a href="{% url 'logout' %}" class="btn btn-danger">登出</a>
-
+  <!-- 新增「積分遊戲」按鈕，連到 /casino/slot/ (假設路由名為 slot_game) -->
+  <a href="{% url 'slot_game' %}" class="btn btn-primary">積分遊戲</a>
       </a>
   </div>
 {% endblock %}

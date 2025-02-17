@@ -10,6 +10,8 @@ urlpatterns = [
     path('', member_views.home_view, name='home'),
     # members App 的 URL 路由
     path('members/', include('members.urls')),
+    # casino App 的 URL 路由
+    path('casino/', include('casino.urls')),
     # 密碼重設相關 URL
     path('password_reset/', auth_views.PasswordResetView.as_view(), name='password_reset'),
     path('password_reset/done/', auth_views.PasswordResetDoneView.as_view(), name='password_reset_done'),

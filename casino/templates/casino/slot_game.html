@@ -1,0 +1,146 @@
+<!-- casino/templates/casino/slot_game.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>拉霸機 Demo</title>
+    <!-- 引入 Phaser (可依需求版本替換) -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  </head>
+  <body style="background: #222; color: #fff; margin:0;">
+    <div id="game-container"></div>
+
+    <!-- 
+      透過 Django 模板變數，把 user_id 和 points 注入到 JavaScript 變數中。
+      假設在 views.py -> slot_game 傳來: {"user_id": ..., "points": ...}
+    -->
+    <script>
+      let userId = {{ user_id|default:0 }};
+      let currentPoints = {{ points|default:0 }};
+    </script>
+
+    <script>
+      // Phaser 遊戲設定
+      const config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        parent: 'game-container',
+        scene: {
+          preload: preload,
+          create: create,
+          update: update
+        }
+      };
+
+      const game = new Phaser.Game(config);
+
+      let reels = [];
+      let spinning = false;
+
+      function preload(){
+        // 預載符號圖檔 (請確保這些檔案在 /static/casino/ 下)
+        this.load.image("symbol1", "/static/casino/symbol1.png");
+        this.load.image("symbol2", "/static/casino/symbol2.png");
+        this.load.image("symbol3", "/static/casino/symbol3.png");
+        this.load.image("symbol4", "/static/casino/symbol4.png");
+        this.load.image("wild",    "/static/casino/wild.png");
+      }
+
+      function create(){
+        const scene = this;
+
+        // 建立3個捲軸(初始用 symbol1)
+        for(let i=0; i<3; i++){
+          let s = scene.add.sprite(200 + i*150, 250, "symbol1");
+          reels.push(s);
+        }
+
+        // Spin 按鈕 (示範，壓 10 點)
+        const spinButton = scene.add.text(350, 500, "SPIN", {
+          fontSize: '32px',
+          backgroundColor: '#cc0000',
+          color: '#fff',
+          padding: { x:20, y:10 }
+        }).setInteractive();
+
+        spinButton.on('pointerdown', () => {
+          if(!spinning){
+            startSpinAPI.call(scene, userId, 10);
+          }
+        });
+
+        // 在畫面左上顯示當前積分
+        scene.pointText = scene.add.text(10, 10, "Points: " + currentPoints, {
+          fontSize: '24px',
+          color: '#FFD700'
+        });
+      }
+
+      function update(){
+        // 每幀更新 (目前無需要)
+      }
+
+      // 呼叫後端 POST /casino/slot/spin/
+      function startSpinAPI(userId, bet){
+        spinning = true;
+        const scene = this;
+
+        fetch("/casino/slot/spin/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: new URLSearchParams({
+            user_id: userId,
+            bet: bet
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if(data.error){
+            alert(data.error);
+            spinning = false;
+            return;
+          }
+          // data: { reels, win_amount, current_points }
+          animateReels(data.reels, data.win_amount, data.current_points);
+        })
+        .catch(err => {
+          console.error("API Error:", err);
+          spinning = false;
+        });
+      }
+
+      // 用簡單的 tween 模擬「上下晃動」轉動後，最後換成後端回傳的符號
+      function animateReels(reelResult, win, newPoints){
+        const scene = this;
+        reels.forEach((sprite, index) => {
+          scene.tweens.add({
+            targets: sprite,
+            y: sprite.y + 200,
+            duration: 200,
+            repeat: 3,
+            yoyo: true,
+            onComplete: () => {
+              // 動畫結束後換成最終符號
+              sprite.setTexture(reelResult[index]);
+
+              // 若是最後一個捲軸
+              if(index === reels.length - 1){
+                spinning = false;
+                // 更新畫面中的分數顯示
+                currentPoints = newPoints;
+                scene.pointText.setText("Points: " + currentPoints);
+
+                if(win > 0){
+                  alert("恭喜贏了 " + win + " 點!");
+                }
+              }
+            }
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

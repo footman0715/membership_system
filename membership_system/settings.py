@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # 自訂的會員系統 App
     'members',
+    # 自訂的遊戲系統 App
+    'casino',
 ]
 
 # ==============================================================================
