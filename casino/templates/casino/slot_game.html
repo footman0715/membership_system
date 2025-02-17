@@ -183,9 +183,9 @@
             // 捲軸往下移
             reelContainer.list.forEach(spr => {
               spr.y += 10;
-              if (spr.y > 80) {
+              if (spr.y > 48) {
                 // 超出下邊 => 移到最上邊
-                spr.y -= 240; // 80*3
+                spr.y -= 144; // 80*3
                 let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
                 spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
               }
