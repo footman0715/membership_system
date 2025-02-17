@@ -62,9 +62,9 @@
         // 3) 建立三個捲軸容器
         //    參考你給的位置： x=400±145, y=300+10
         const reelPositions = [
-          { x: 400 - 145, y: 300 + 20 },
-          { x: 400,       y: 300 + 20 },
-          { x: 400 + 145, y: 300 + 20 }
+          { x: 400 - 145, y: 300 + 12 },
+          { x: 400,       y: 300 + 12 },
+          { x: 400 + 145, y: 300 + 12 }
         ];
 
         reelPositions.forEach(pos => {
@@ -75,7 +75,7 @@
           let possibleKeys = ["symbol1","symbol2","symbol3","symbol4","wild"];
           for (let i = 0; i < 3; i++) {
             let randKey = Phaser.Utils.Array.GetRandom(possibleKeys);
-            let spr = scene.add.sprite(0, (i - 1) * 208, randKey);
+            let spr = scene.add.sprite(0, (i - 1) * 150, randKey);
             reelContainer.add(spr);
           }
 
