@@ -65,6 +65,7 @@
         }).setInteractive();
 
         spinButton.on('pointerdown', () => {
+          console.log("Spin button clicked!");
           if(!spinning){
             startSpinAPI.call(scene, userId, 10);
           }
