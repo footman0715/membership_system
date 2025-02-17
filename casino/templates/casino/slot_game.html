@@ -177,7 +177,7 @@
           callback: () => {
             // 向下移動
             reelContainer.list.forEach(spr => {
-              spr.y += 1000; // 速度
+              spr.y += 100; // 速度
               if (spr.y > 80) {
                 // 超過下邊, 移到最上方 -160 (因為間距是80*2)
                 spr.y -= 240; 
