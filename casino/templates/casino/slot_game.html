@@ -1,4 +1,3 @@
-<!-- casino/templates/casino/slot_game.html -->
 <!DOCTYPE html>
 <html>
   <head>
@@ -31,42 +30,51 @@
       };
       const game = new Phaser.Game(config);
 
-      // 全域變數
-      let reelContainers = [];  // 3 個捲軸的容器
+      // 全域變數：3 個捲軸的 sprite (簡化成 3×1)
+      let reelSprites = [];  
       let spinning = false;
 
       function preload() {
-        // 載入外框圖
+        // 載入外框圖 (229×102)
         this.load.image("machineFrame", "/static/casino/slot_frame.png"); 
+
         // 載入符號
-        this.load.image("symbol1", "/static/casino/symbol1.png");
-        this.load.image("symbol2", "/static/casino/symbol2.png");
-        this.load.image("symbol3", "/static/casino/symbol3.png");
-        this.load.image("symbol4", "/static/casino/symbol4.png");
-        this.load.image("wild",    "/static/casino/wild.png");
+        this.load.image("symbol1", "/static/casino/symbol1.png"); // 40x53
+        this.load.image("symbol2", "/static/casino/symbol2.png"); // 53x57
+        this.load.image("symbol3", "/static/casino/symbol3.png"); // 63x66
+        this.load.image("symbol4", "/static/casino/symbol4.png"); // 66x54
+        this.load.image("wild",    "/static/casino/wild.png");    // 51x24
+        this.load.image("symbol15","/static/casino/symbol15.png"); // 45x54 (可能其他素材)
       }
 
       function create() {
         const scene = this;
 
-        // 1) 加入拉霸機外框 (中心放在 400,300；可微調)
+        // 1) 加入拉霸機外框
+        // 原圖 229×102 => 我們放大 2 倍 => 458×204
+        // 讓它中心在(400,300)
         const frame = scene.add.image(400, 300, "machineFrame");
-        frame.setDepth(0); // 在最底層
+        frame.setScale(2);
+        frame.setDepth(0); 
 
-        // 2) 建立三個捲軸容器 (示範 x=260, 400, 540; y=180)
-        //   每個容器裡放 4 張符號 sprite，垂直分佈
-        const startX = [260, 400, 540];
-        for(let i=0; i<3; i++){
-          let reelContainer = scene.add.container(startX[i], 180);
-          // 塞 4 張預設符號
-          for(let j=0; j<4; j++){
-            let randKey = Phaser.Utils.Array.GetRandom(["symbol1","symbol2","symbol3","symbol4","wild"]);
-            let spr = scene.add.sprite(0, j*100, randKey);
-            reelContainer.add(spr);
-          }
-          reelContainer.setDepth(1); 
-          reelContainers.push(reelContainer);
-        }
+        // 2) 建立 3 個捲軸 sprite，各放在外框的 3 個格子中
+        //    由於外框現在寬約 458，高約 204，我們假設 3 個格子 X 分佈：
+        //    left: 400 - 80,  middle: 400, right: 400 + 80
+        //    Y 大約 300 (中心)
+        const reelPositions = [ 
+          { x: 400 - 80, y: 300 }, 
+          { x: 400,      y: 300 }, 
+          { x: 400 + 80, y: 300 } 
+        ];
+
+        reelPositions.forEach((pos, i) => {
+          // 隨機給一個 symbol
+          const randKey = Phaser.Utils.Array.GetRandom(["symbol1","symbol2","symbol3","symbol4","wild","symbol15"]);
+          // 建立 sprite
+          let reelSprite = scene.add.sprite(pos.x, pos.y, randKey);
+          reelSprite.setDepth(1); 
+          reelSprites.push(reelSprite);
+        });
 
         // 3) 顯示當前積分
         scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
@@ -74,13 +82,17 @@
           color: '#FFD700'
         });
 
-        // 4) Spin 按鈕
-        const spinButton = scene.add.text(350, 500, "SPIN", {
+        // 4) Spin 按鈕 (放在外框下方)
+        //    外框底部約 = 300 + (frame.displayHeight/2) = 300+102=402
+        //    我們再往下 40 => y=442
+        const spinButton = scene.add.text(400, 440, "SPIN", {
           fontSize: '32px',
           backgroundColor: '#cc0000',
           color: '#fff',
           padding: { x: 20, y: 10 }
-        }).setInteractive();
+        })
+        .setInteractive()
+        .setOrigin(0.5); // 文字居中
 
         spinButton.on('pointerdown', () => {
           console.log("Spin button clicked!");
@@ -91,12 +103,12 @@
       }
 
       function update() {
-        // 不需要做什麼
+        // 此版本不需要在每帧做事
       }
 
-      // ================
-      // 呼叫後端 API
-      // ================
+      // ======================================
+      // 呼叫後端 API (與派彩邏輯不變)
+      // ======================================
       function startSpinAPI(scene, userId, bet){
         spinning = true;
         if(userId === 0){
@@ -123,8 +135,8 @@
           // data: { reels: [...], win_amount, current_points }
           // reels 例如 ["symbol2","wild","symbol1"]
 
-          // 5) 執行更逼真的轉動
-          spinAllReels(scene, data.reels, data.win_amount, data.current_points);
+          // 簡化：直接換 sprite 貼圖 (無滾動動畫)
+          spinReels(scene, data.reels, data.win_amount, data.current_points);
         })
         .catch(err => {
           console.error("API Error:", err);
@@ -132,78 +144,25 @@
         });
       }
 
-      // ================
-      // 真實轉動
-      // ================
-      /**
-       * 依序轉動三個捲軸，最後停在後端指定的 reels 結果
-       */
-      function spinAllReels(scene, reelResult, win, newPoints){
-        // 設定每個捲軸轉動時間 & 延遲
-        // 例如：第一個 2 秒 -> 第二個 2.5 秒 -> 第三個 3 秒
-        let durations = [2000, 2500, 3000];
-        reelContainers.forEach((reelC, index) => {
-          spinReel(scene, reelC, durations[index], reelResult[index], () => {
-            // 當最後一個捲軸也停下來
-            if(index === reelContainers.length - 1){
-              spinning = false;
-              currentPoints = newPoints;
-              scene.pointText.setText(`Points: ${currentPoints}`);
-              if(win > 0){
-                alert(`恭喜贏了 ${win} 點!`);
-              }
-            }
-          });
-        });
-      }
-
-      /**
-       * 轉動單一捲軸 (reelContainer)，於 duration 毫秒後停止，
-       * 最後一格對準 finalSymbol。
-       */
-      function spinReel(scene, reelContainer, duration, finalSymbol, onStop){
-        // 每 80 ms 移動一次
-        let speed = 30; // 每次移動多少像素
-        let event = scene.time.addEvent({
-          delay: 80,
-          loop: true,
-          callback: () => {
-            reelContainer.y += speed;
-            // 若任何 sprite 超過某閾值，就移回上方
-            reelContainer.list.forEach(spr => {
-              let globalY = reelContainer.y + spr.y;
-              if(globalY > 600){ // 600=遊戲高度
-                spr.y -= 400; // 4張*100=400
-                // 隨機換符號 => 模擬持續滾動
-                let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
-                spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
-              }
-            });
-          }
+      // ======================================
+      // 真實轉動 (簡化為：直接替換 sprite)
+      // ======================================
+      // 如果你還想要 "上下晃動" or "容器輪播" 效果，就自行再加 tween
+      function spinReels(scene, resultSymbols, win, newPoints){
+        // 1) 暫時用最簡單邏輯：直接改 3 個 sprite 貼圖
+        reelSprites.forEach((sp, i) => {
+          sp.setTexture(resultSymbols[i]); 
         });
 
-        // duration 毫秒後停止轉動
-        scene.time.delayedCall(duration, () => {
-          event.remove(); // 停止上述 callback
-          // 校正捲軸位置 => reelContainer.y % 100
-          let offset = reelContainer.y % 100;
-          reelContainer.y -= offset; // 對齊
+        // 2) 更新分數
+        spinning = false;
+        currentPoints = newPoints;
+        scene.pointText.setText(`Points: ${currentPoints}`);
 
-          // 把「容器中最上方(或中間)的 sprite」換成 finalSymbol
-          // 這裡視你的顯示範圍而定：如果畫面中顯示第 1 格，就把它改 finalSymbol
-          let topSprite = reelContainer.list[0];
-          // 由於可能被移動過，你可以找「最接近 180~280」的 sprite 來換
-          // 這裡簡化直接改 [0]
-          topSprite.setTexture(finalSymbol);
-
-          // 可視需求再微調 spr.y, reelContainer.y 使 finalSymbol 保持在可見範圍
-          // ...
-
-          // 呼叫完成後的回調
-          if(typeof onStop === 'function'){
-            onStop();
-          }
-        });
+        // 3) 中獎提示
+        if(win > 0){
+          alert(`恭喜贏了 ${win} 點!`);
+        }
       }
     </script>
   </body>
