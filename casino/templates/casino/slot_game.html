@@ -2,11 +2,16 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機：顯示最上方且離中心最近的捲軸</title>
+    <title>拉霸機 Demo：三秒+白色閃光特效</title>
+    <!-- 引入 Phaser 3 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-      body { background: #222; color: #fff; margin: 0; }
-      #game-container { float: left; }
+      body {
+        background: #222; color: #fff; margin: 0;
+      }
+      #game-container {
+        position: relative; float: left;
+      }
       #reward-box {
         position: absolute;
         left: 820px; top: 10px;
@@ -15,31 +20,30 @@
         background: #222; color: #fff;
         overflow-y: auto; padding: 10px;
       }
+      #reward-box h3 { margin: 5px 0; }
       #bet-container {
-        position: absolute; left:10px; top:620px;
-        color: #fff;
+        position: absolute; left:10px; top:620px; color:#fff;
       }
       #betInput { width:80px; }
       #homeBtn {
-        position: absolute;
-        top:620px; left:200px;
-        color:#fff; background:#444;
-        padding:6px 12px; border:1px solid #666;
-        border-radius:4px; text-decoration: none;
+        position: absolute; top:620px; left:200px;
+        color:#fff; background:#444; padding:6px 12px;
+        text-decoration: none; border:1px solid #666; border-radius:4px;
       }
     </style>
   </head>
   <body>
     <div id="game-container"></div>
+    <!-- 獎勵紀錄框 -->
     <div id="reward-box">
       <h3>獎勵紀錄</h3>
       <div id="reward-logs">尚無紀錄</div>
     </div>
+    <!-- BET 輸入框 & 回首頁按鈕 -->
     <div id="bet-container">
       <label for="betInput">BET:</label>
       <input type="number" id="betInput" value="10" min="1" max="9999" step="1">
     </div>
-    <!-- 回首頁按鈕 -->
     <a id="homeBtn" href="/members/home">回會員首頁</a>
 
     <!-- Django 變數 -->
@@ -63,9 +67,12 @@
       let spinning = false;
       let autoSpinCount = 0;
 
-      // 三秒 => 前1秒(Phase1),後2秒(Phase2)
-      const PHASE1_DURATION = 1000;
-      const PHASE2_DURATION = 2000;
+      // 總時間3秒 => Phase1=1秒, Phase2=2秒
+      const PHASE1_DURATION= 1000;
+      const PHASE2_DURATION= 2000;
+
+      // 白光閃特效用
+      let whiteOverlay=null;
 
       function preload(){
         // 載入外框
@@ -81,7 +88,7 @@
       function create(){
         const scene=this;
 
-        // 1) 建立3個容器
+        // 1) 建3個容器
         let reelPositions=[
           { x:400-145, y:290 },
           { x:400,     y:290 },
@@ -90,45 +97,50 @@
         reelPositions.forEach(pos=>{
           let c=scene.add.container(pos.x,pos.y);
           for(let i=0;i<3;i++){
-            let spr=scene.add.sprite(0,(i-1)*80, pickRandomSymbol());
+            let spr=scene.add.sprite(0,(i-1)*80,pickRandomSymbol());
             c.add(spr);
           }
           reelContainers.push(c);
         });
 
-        // 2) 外框
+        // 外框
         scene.add.image(400,300,"machineFrame").setScale(2).setDepth(10);
 
-        // 3) Mask
+        // Mask
         let maskRect=scene.add.rectangle(400,300,440,180,0x00ff00,0).setDepth(15);
         let reelMask=maskRect.createGeometryMask();
         reelContainers.forEach(c=> c.setMask(reelMask));
 
-        // 4) Points
+        // 分數
         scene.pointText=scene.add.text(10,10, `Points: ${currentPoints}`, {
           fontSize:'24px', color:'#FFD700'
         });
 
-        // 5) SPIN
+        // 白色遮罩, 全螢幕, alpha=0, depth很高
+        whiteOverlay= scene.add.rectangle(400,300,800,600,0xffffff,1)
+          .setDepth(999) 
+          .setAlpha(0); // 初始看不見
+
+        // Spin 按鈕
         let spinBtn= scene.add.text(400,500,"SPIN",{
-          fontSize:'32px', backgroundColor:'#cc0000', color:'#fff',padding:{x:20,y:10}
+          fontSize:'32px', backgroundColor:'#cc0000', color:'#fff', padding:{x:20,y:10}
         }).setOrigin(0.5).setInteractive();
         spinBtn.on('pointerdown', ()=>{
           if(!spinning){
-            let betAmount=getBetValue();
+            let betAmount= getBetValue();
             startSpinAPI(scene, userId, betAmount);
           }
         });
 
-        // 6) 自動轉
+        // 自動轉
         scene.add.text(600,480,"自動轉:", {fontSize:'20px',color:'#fff'}).setDepth(20);
         let autoOpts=[30,50,100];
         autoOpts.forEach((opt,i)=>{
-          let autoBtn=scene.add.text(600, 500+i*25, `${opt}次`,{
-            fontSize:'18px',backgroundColor:'#555',color:'#fff',padding:{x:5,y:2}
+          let autoBtn= scene.add.text(600,500+i*25,`${opt}次`,{
+            fontSize:'18px',backgroundColor:'#555', color:'#fff', padding:{x:5,y:2}
           }).setInteractive().setDepth(20);
           autoBtn.on('pointerdown',()=>{
-            if(!spinning&&autoSpinCount===0){
+            if(!spinning && autoSpinCount===0){
               let betAmount=getBetValue();
               autoSpinCount=opt;
               startSpinAPI(scene, userId, betAmount);
@@ -139,11 +151,11 @@
 
       function update(){}
 
-      // 抓 BET 數字
+      // 從 DOM 讀 BET 數字
       function getBetValue(){
         let betInput=document.getElementById("betInput");
-        let val=parseInt(betInput.value,10)||10;
-        return val;
+        let v= parseInt(betInput.value,10)||10;
+        return v;
       }
 
       // 呼叫後端
@@ -152,10 +164,7 @@
         fetch("/casino/slot/spin/", {
           method:"POST",
           headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body:new URLSearchParams({
-            user_id: userId,
-            bet: bet
-          })
+          body:new URLSearchParams({ user_id:userId, bet:bet })
         })
         .then(r=>r.json())
         .then(data=>{
@@ -167,7 +176,7 @@
           spinReelsSequentially(scene, data.reels, data.win_amount, data.current_points, bet);
         })
         .catch(err=>{
-          console.error("API Error:", err);
+          console.error("API Error:",err);
           spinning=false; autoSpinCount=0;
         });
       }
@@ -181,6 +190,7 @@
             currentPoints=newPoints;
             scene.pointText.setText(`Points: ${currentPoints}`);
             if(win>0) addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
+            // 自動轉
             if(autoSpinCount>0){
               autoSpinCount--;
               if(autoSpinCount>0){
@@ -189,8 +199,9 @@
             }
             return;
           }
-          doPhase1(scene, reelContainers[index], PHASE1_DURATION, ()=>{
-            doPhase2(scene, reelContainers[index], reelResults[index], PHASE2_DURATION, ()=>{
+          // Phase1(1s) + Phase2(2s, 含閃光)
+          doPhase1(scene, reelContainers[index], 1000, ()=>{
+            doPhase2WithFlash(scene, reelContainers[index], reelResults[index], 2000, ()=>{
               index++;
               spinNext();
             });
@@ -199,23 +210,21 @@
         spinNext();
       }
 
-      // Phase1: 前1秒固定速度+隨機
+      // Phase1：固定速度+隨機
       function doPhase1(scene, container, duration, onComplete){
         let startTime=scene.time.now;
         let speed=25;
-
         let phase1Event= scene.time.addEvent({
           delay:40, loop:true,
           callback:()=>{
-            let elapsed=scene.time.now - startTime;
+            let elapsed= scene.time.now - startTime;
             if(elapsed>=duration){
               phase1Event.remove();
               if(onComplete) onComplete();
               return;
             }
-            // 固定速度+隨機
             container.list.forEach(spr=>{
-              spr.y+=speed;
+              spr.y+= speed;
               if(spr.y>80){
                 spr.y-=240;
                 spr.setTexture(pickRandomSymbol());
@@ -225,87 +234,108 @@
         });
       }
 
-      // Phase2: 後2秒漸減速, 不換圖 => 最終 "上方且離中心最近" sprite
-      function doPhase2(scene, container, finalKey, duration, onComplete){
-        let startTime= scene.time.now;
+      // Phase2(2秒) + 白色閃光
+      function doPhase2WithFlash(scene, container, finalKey, duration, onComplete){
+        let startTime=scene.time.now;
         let baseSpeed=25;
         let phase2Event= scene.time.addEvent({
           delay:40, loop:true,
           callback:()=>{
             let elapsed= scene.time.now - startTime;
+            if(elapsed>= duration){
+              // 正式停止
+              phase2Event.remove();
+              // 直接調用 "whiteFlash" function
+              doWhiteFlash(scene, ()=>{
+                // 在閃光蓋住捲軸後, 再對準 & setTexture
+                let topSpr= findClosestToZero(container); 
+                // 或 findUpperClosestToCenter
+                let offset= topSpr.y;
+                container.list.forEach(s=> s.y-= offset);
+                topSpr.setTexture(finalKey);
+                // 收起閃光
+                doWhiteFlashOut(scene, ()=>{
+                  if(onComplete) onComplete();
+                });
+              });
+              return;
+            }
+
+            // 漸減速
             let ratio= elapsed/duration;
             let curSpeed= baseSpeed*(1-ratio);
             if(curSpeed<2) curSpeed=2;
 
-            // 只移動 不換圖
             container.list.forEach(spr=>{
               spr.y+=curSpeed;
               if(spr.y>80){
                 spr.y-=240;
               }
             });
-
-            if(elapsed>=duration){
-              phase2Event.remove();
-              // 找最上方但距 y=0 最近
-              let topSpr=findUpperClosestToCenter(container);
-              let offset=topSpr.y;
-              container.list.forEach(s=> s.y-=offset);
-              // topSpr 換最終符號
-              topSpr.setTexture(finalKey);
-
-              if(onComplete) onComplete();
-            }
           }
         });
       }
 
-      // 挑隨機符號
+      // 白色閃光 => tween alpha 0->1
+      function doWhiteFlash(scene, callback){
+        if(!whiteOverlay) { 
+          if(callback) callback(); 
+          return; 
+        }
+        // Tween alpha: 0->1 in 0.2s
+        scene.tweens.add({
+          targets: whiteOverlay,
+          alpha: 1,
+          duration: 200,
+          onComplete: () => {
+            // 完全蓋住捲軸後 -> callback
+            if(callback) callback();
+          }
+        });
+      }
+
+      // 白色閃光退 => alpha 1->0
+      function doWhiteFlashOut(scene, callback){
+        if(!whiteOverlay) { 
+          if(callback) callback(); 
+          return; 
+        }
+        scene.tweens.add({
+          targets: whiteOverlay,
+          alpha: 0,
+          duration: 200,
+          onComplete: () => {
+            if(callback) callback();
+          }
+        });
+      }
+
+      // 隨機符號
       function pickRandomSymbol(){
         let syms=["symbol1","symbol2","symbol3","symbol4","wild"];
         return Phaser.Utils.Array.GetRandom(syms);
       }
 
-      // 找最上方 但最接近 y=0 的 sprite
-      function findUpperClosestToCenter(container){
-        let bestSpr=null, bestDist= Infinity;
-        // 只考慮 y <= 0
-        container.list.forEach(spr=>{
-          if(spr.y <= 0){
-            let dist=Math.abs(spr.y);
-            if(dist<bestDist){
-              bestDist=dist;
-              bestSpr=spr;
-            }
-          }
-        });
-        // 若全都 y>0, 則退而求最近
-        if(!bestSpr){
-          bestSpr = findClosestToZero(container);
-        }
-        return bestSpr;
-      }
-
-      // 若上面都沒有 => 取最接近 y=0
+      // 找最接近 y=0
       function findClosestToZero(container){
-        let target=null, minDist=99999;
+        let bestSpr=null, bestDist=99999;
         container.list.forEach(s=>{
           let d=Math.abs(s.y);
-          if(d<minDist){
-            minDist=d; target=s;
+          if(d<bestDist){
+            bestDist=d; bestSpr=s;
           }
         });
-        return target;
+        return bestSpr;
       }
 
       // 獎勵紀錄
       function addRewardLog(text){
-        let logDiv=document.getElementById("reward-logs");
+        let logDiv= document.getElementById("reward-logs");
         if(!logDiv)return;
         if(logDiv.innerHTML==="尚無紀錄") logDiv.innerHTML="";
         let now=new Date();
         let line=`[${now.toLocaleTimeString()}] ${text}`;
-        logDiv.innerHTML+= line+"<br/>";
+        logDiv.innerHTML += line+"<br/>";
         logDiv.scrollTop= logDiv.scrollHeight;
       }
     </script>
