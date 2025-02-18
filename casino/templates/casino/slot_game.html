@@ -50,7 +50,7 @@
       #homeBtn {
         position: absolute;
         top: 620px;
-        left: 250px;
+        left: 500px;
         padding: 5px 10px;
         background: #444;
         color: #fff;
@@ -136,7 +136,7 @@
 
         // 遮住「上方」=> Geometry Mask
         // 例如 只顯示 y>= 250 ~ 550
-        let maskRect= scene.add.rectangle(400, 400, 440, 180, 0x00ff00,0);
+        let maskRect= scene.add.rectangle(400, 300, 440, 200, 0x00ff00,0);
         // 這個 rectangle 中心在 (400,400), 高180 => 顯示 y=310~490
         // 視需要微調
         const reelMask = maskRect.createGeometryMask();
