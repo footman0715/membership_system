@@ -33,6 +33,7 @@
 
     <!-- Django 模板變數：user_id, points -->
     <script>
+      // 假設 Django 會注入 userId 與 points 至此
       let userId = {{ user_id|default:0 }};
       let currentPoints = {{ points|default:0 }};
     </script>
@@ -114,6 +115,7 @@
         }).setOrigin(0.5).setInteractive();
         spinButton.on('pointerdown', () => {
           if(!spinning){
+            // ★ 這裡用 userId ★
             startSpinAPI(scene, userId, betAmount);
           }
         });
@@ -128,6 +130,7 @@
           autoBtn.on('pointerdown', ()=>{
             if(!spinning && autoSpinCount===0){
               autoSpinCount=opt;
+              // ★ 同樣這裡用 userId ★
               startSpinAPI(scene, userId, betAmount);
             }
           });
@@ -136,13 +139,18 @@
 
       function update(){}
 
-      // 呼叫後端
+      // --------------------------------------------------------------------------------------
+      // ★ 修正這裡：用 { user_id: userId } 傳給後端，而不是 {user_id, userId}
+      // --------------------------------------------------------------------------------------
       function startSpinAPI(scene, userId, bet){
         spinning=true;
         fetch("/casino/slot/spin/", {
           method:"POST",
           headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body:new URLSearchParams({user_id,userId, bet})
+          body:new URLSearchParams({
+            user_id: userId, // 後端參數 user_id= 前端的 userId 變數
+            bet: bet
+          })
         })
         .then(r=>r.json())
         .then(data=>{
@@ -169,16 +177,18 @@
             currentPoints=newPoints;
             scene.pointText.setText(`Points: ${currentPoints}`);
             if(win>0) addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
+            // 自動轉
             if(autoSpinCount>0){
               autoSpinCount--;
               if(autoSpinCount>0){
-                startSpinAPI(scene, userId, usedBet);
+                startSpinAPI(scene, userId, usedBet); 
               }
             }
             return;
           }
           spinOneReelEaseOut(scene, reelContainers[index], reelResults[index], spinDuration, ()=>{
-            index++; spinNext();
+            index++; 
+            spinNext();
           });
         }
         spinNext();
@@ -186,9 +196,9 @@
 
       // 單一捲軸：漸減速 + 後半段不換圖
       function spinOneReelEaseOut(scene, container, finalKey, duration, onStop){
-        let startTime = scene.time.now;
-        let baseSpeed=25; // 初始速度
-        let spinEvent=scene.time.addEvent({
+        let startTime= scene.time.now;
+        let baseSpeed=25;
+        let spinEvent= scene.time.addEvent({
           delay:20,
           loop:true,
           callback:()=>{
@@ -203,7 +213,8 @@
               if(spr.y>80){
                 if(ratio<0.5){
                   spr.y-=240;
-                  spr.setTexture(Phaser.Utils.Array.GetRandom(["symbol1","symbol2","symbol3","symbol4","wild"]));
+                  let possible=["symbol1","symbol2","symbol3","symbol4","wild"];
+                  spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
                 } else {
                   // 只移動，不換圖
                   spr.y-=240;
@@ -211,7 +222,6 @@
               }
             });
 
-            // 時間到 => 停止
             if(elapsed>=duration){
               spinEvent.remove();
               // 校正 => 中間 sprite y=0
