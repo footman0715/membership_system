@@ -2,38 +2,109 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機 </title>
+    <title>拉霸機 Demo：方案A + 遮罩上方 + 右側紀錄 + 下方BET/自動轉/回首頁</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-      body { background:#222; color:#fff; margin:0; }
-      #game-container { float:left; }
-      /* 你也可加入右側獎勵紀錄框 / BET輸入 / 回首頁按鈕等 DOM */
+      body {
+        margin: 0; 
+        background: #222; 
+        color: #fff;
+      }
+      /* Phaser 遊戲區 */
+      #game-container {
+        float: left;
+      }
+      /* 獎勵紀錄框 - 右側 */
+      #reward-box {
+        position: absolute;
+        left: 820px; /* 遊戲寬800 + 20px */
+        top: 10px;
+        width: 200px;
+        height: 580px;
+        border: 1px solid #999;
+        background: #222;
+        color: #fff;
+        overflow-y: auto;
+        padding: 10px;
+      }
+      #reward-box h3 {
+        margin: 5px 0;
+      }
+      /* 下方 BET & 自動轉 & 回首頁 */
+      #footer-controls {
+        position: absolute;
+        top: 620px;
+        left: 10px;
+        color: #fff;
+      }
+      #betInput {
+        width: 80px;
+      }
+      .auto-btn {
+        background: #555;
+        color: #fff;
+        padding: 5px 10px;
+        margin-left: 5px;
+        cursor: pointer;
+      }
+      #homeBtn {
+        position: absolute;
+        top: 620px;
+        left: 250px;
+        padding: 5px 10px;
+        background: #444;
+        color: #fff;
+        text-decoration: none;
+        border: 1px solid #666;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
     <div id="game-container"></div>
 
-    <!-- Django 注入的 userId, points -->
+    <!-- 右側紀錄框 -->
+    <div id="reward-box">
+      <h3>獎勵紀錄</h3>
+      <div id="reward-logs">尚無紀錄</div>
+    </div>
+
+    <!-- 下方控制區：BET / 自動轉 / 回首頁 -->
+    <div id="footer-controls">
+      <label for="betInput">BET:</label>
+      <input type="number" id="betInput" value="10" min="1" max="9999" step="1">
+
+      <span style="margin-left:20px;">自動轉:</span>
+      <button class="auto-btn" data-times="30">30次</button>
+      <button class="auto-btn" data-times="50">50次</button>
+      <button class="auto-btn" data-times="100">100次</button>
+    </div>
+
+    <a id="homeBtn" href="/members/home">回會員首頁</a>
+
+    <!-- Django 注入 userId, points -->
     <script>
       let userId = {{ user_id|default:0 }};
       let currentPoints = {{ points|default:0 }};
     </script>
 
     <script>
+      // Phaser 設定
       const config = {
         type: Phaser.AUTO,
         width: 800,
         height: 600,
-        parent: 'game-container',
+        parent: "game-container",
         scene: { preload, create, update }
       };
       const game = new Phaser.Game(config);
 
       let reelContainers = [];
       let spinning = false;
-      let reelSequences = []; // from backend
+      let reelSequences = []; // 後端給的 3 條序列
+      let autoSpinCount = 0;
 
-      // 兩段式: Phase1=1秒 => Phase2=2秒
+      // Phase1=1秒, Phase2=2秒
       const PHASE1_DURATION=1000;
       const PHASE2_DURATION=2000;
 
@@ -48,10 +119,11 @@
 
       function create(){
         const scene=this;
-        // 建 3 個容器(3 個 sprite each)
-        let reelPos= [ {x:255,y:290}, {x:400,y:290}, {x:545,y:290} ];
-        reelPos.forEach(pos=>{
-          let c= scene.add.container(pos.x, pos.y);
+
+        // 建3個捲軸容器 (3 sprite each)
+        let reelPositions=[ {x:255,y:300}, {x:400,y:300}, {x:545,y:300} ];
+        reelPositions.forEach(pos=>{
+          let c= scene.add.container(pos.x,pos.y);
           for(let i=0;i<3;i++){
             let spr= scene.add.sprite(0,(i-1)*80,"symbol1");
             c.add(spr);
@@ -60,85 +132,114 @@
         });
 
         // 外框
-        scene.add.image(400,300,"machineFrame").setScale(2);
+        scene.add.image(400,300,"machineFrame").setScale(2).setDepth(10);
 
-        // 分數
-        scene.add.text(10,10,`Points:${currentPoints}`,{
+        // 遮住「上方」=> Geometry Mask
+        // 例如 只顯示 y>= 250 ~ 550
+        let maskRect= scene.add.rectangle(400, 400, 440, 180, 0x00ff00,0);
+        // 這個 rectangle 中心在 (400,400), 高180 => 顯示 y=310~490
+        // 視需要微調
+        const reelMask = maskRect.createGeometryMask();
+        reelContainers.forEach(c => c.setMask(reelMask));
+
+        // 顯示 points
+        scene.add.text(10,10, `Points: ${currentPoints}`,{
           fontSize:'24px', color:'#FFD700'
         });
 
         // Spin 按鈕
-        let spinBtn= scene.add.text(400,500,"SPIN",{
+        let spinText= scene.add.text(400,500,"SPIN",{
           fontSize:'32px', backgroundColor:'#cc0000', color:'#fff', padding:{x:20,y:10}
         }).setOrigin(0.5).setInteractive();
-
-        spinBtn.on('pointerdown', ()=>{
+        spinText.on('pointerdown', ()=>{
           if(!spinning){
-            startSpinAPI(scene, userId, 10);
+            let bet = getBetValue();
+            startSpinAPI(scene, userId, bet);
           }
+        });
+
+        // 自動轉按鈕
+        let autoButtons = document.querySelectorAll(".auto-btn");
+        autoButtons.forEach(btn=>{
+          btn.addEventListener("click", ()=>{
+            if(!spinning && autoSpinCount===0){
+              let times = parseInt(btn.dataset.times,10)||30;
+              autoSpinCount= times;
+              let bet=getBetValue();
+              startSpinAPI(scene, userId, bet);
+            }
+          });
         });
       }
 
       function update(){}
+
+      function getBetValue(){
+        let inp= document.getElementById("betInput");
+        let val= parseInt(inp.value,10) || 10;
+        return val;
+      }
 
       function startSpinAPI(scene, userId, bet){
         spinning=true;
         fetch("/casino/slot/spin/", {
           method:"POST",
           headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body: new URLSearchParams({ user_id:userId, bet:bet })
+          body:new URLSearchParams({ user_id:userId, bet:bet })
         })
         .then(r=>r.json())
         .then(data=>{
           if(data.error){
-            alert(data.error); 
-            spinning=false;
+            alert(data.error);
+            spinning=false; autoSpinCount=0;
             return;
           }
-          // reelSequences => e.g. [ seq1, seq2, seq3 ]
-          // each seq = 12 符號
-          reelSequences = data.reelSequences;
-
-          // do Phase1, Phase2
+          reelSequences= data.reelSequences; // 3 條序列
           doPhase1(scene, PHASE1_DURATION, ()=>{
             doPhase2(scene, PHASE2_DURATION, ()=>{
               spinning=false;
-              // update points
               currentPoints= data.current_points;
-              // show win if needed
+              // 顯示贏分
+              if(data.win_amount>0){
+                addRewardLog(`贏了 ${data.win_amount} 點 (BET=${bet})`);
+              }
+              // 若自動轉
+              if(autoSpinCount>0){
+                autoSpinCount--;
+                if(autoSpinCount>0){
+                  startSpinAPI(scene, userId, bet);
+                }
+              }
             });
           });
         })
         .catch(err=>{
           console.error("API Error:",err);
           spinning=false;
+          autoSpinCount=0;
         });
       }
 
-      // Phase1: 1秒,固定速度 + 不斷 shift() 取 seq
+      // Phase1: 1s,固定速度 => spr.y>80 => shift 符號
       function doPhase1(scene, duration, onComplete){
         let startTime= scene.time.now;
         let speed=25;
-
-        let phase1Event= scene.time.addEvent({
-          delay:40,
-          loop:true,
+        let e= scene.time.addEvent({
+          delay:40, loop:true,
           callback:()=>{
             let elapsed= scene.time.now - startTime;
             if(elapsed>= duration){
-              phase1Event.remove();
+              e.remove();
               if(onComplete) onComplete();
               return;
             }
-            // 移動 + 取 nextSym
-            reelContainers.forEach( (container, i)=>{
-              container.list.forEach(spr=>{
-                spr.y += speed;
+            reelContainers.forEach( (c,i)=>{
+              c.list.forEach(spr=>{
+                spr.y+= speed;
                 if(spr.y>80){
                   spr.y-=240;
-                  // ★ 從 reelSequences[i] 取下一個符號
                   if(reelSequences[i].length>0){
-                    let nextSym = reelSequences[i].shift();
+                    let nextSym= reelSequences[i].shift();
                     spr.setTexture(nextSym);
                   }
                 }
@@ -148,30 +249,28 @@
         });
       }
 
-      // Phase2: 2秒,漸減速 + 不再 shift
+      // Phase2: 2s, 漸減速 => 不再取符號
       function doPhase2(scene, duration, onComplete){
         let startTime= scene.time.now;
         let baseSpeed=25;
-        let phase2Event= scene.time.addEvent({
-          delay:40,
-          loop:true,
+        let e= scene.time.addEvent({
+          delay:40, loop:true,
           callback:()=>{
             let elapsed= scene.time.now - startTime;
             if(elapsed>= duration){
-              phase2Event.remove();
+              e.remove();
               if(onComplete) onComplete();
               return;
             }
             let ratio= elapsed/duration;
             let curSpeed= baseSpeed*(1-ratio);
             if(curSpeed<2) curSpeed=2;
-
-            reelContainers.forEach(container=>{
-              container.list.forEach(spr=>{
-                spr.y += curSpeed;
+            reelContainers.forEach(c=>{
+              c.list.forEach(spr=>{
+                spr.y+= curSpeed;
                 if(spr.y>80){
                   spr.y-=240;
-                  // 不再 shift => 保持最終符號
+                  // 不再換圖
                 }
               });
             });
@@ -179,8 +278,15 @@
         });
       }
 
-      // (若需要) pickRandomSymbol, 這裡用不上了
-      // function pickRandomSymbol(){ ... }
+      function addRewardLog(msg){
+        const box= document.getElementById("reward-logs");
+        if(!box)return;
+        if(box.innerHTML==="尚無紀錄") box.innerHTML="";
+        const now= new Date();
+        const line= `[${now.toLocaleTimeString()}] ${msg}`;
+        box.innerHTML += line + "<br/>";
+        box.scrollTop= box.scrollHeight;
+      }
     </script>
   </body>
 </html>
