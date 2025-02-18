@@ -2,83 +2,54 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機 Demo：三秒轉動 (1+2), DOM 輸入 BET, 回首頁按鈕</title>
-    <!-- 引入 Phaser 3 -->
+    <title>拉霸機：顯示最上方且離中心最近的捲軸</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-      body {
-        background: #222;
-        color: #fff;
-        margin: 0;
-      }
-      /* 遊戲畫面容器 */
-      #game-container {
-        position: relative;
-        float: left;
-      }
-      /* 獎勵紀錄框 */
+      body { background: #222; color: #fff; margin: 0; }
+      #game-container { float: left; }
       #reward-box {
         position: absolute;
-        left: 820px;
-        top: 10px;
-        width: 200px;
-        height: 580px;
+        left: 820px; top: 10px;
+        width: 200px; height: 580px;
         border: 1px solid #999;
-        background: #222;
-        color: #fff;
-        overflow-y: auto;
-        padding: 10px;
+        background: #222; color: #fff;
+        overflow-y: auto; padding: 10px;
       }
-      #reward-box h3 {
-        margin: 5px 0;
-      }
-      /* 其他 DOM 元素 (bet 輸入 / 回首頁按鈕) */
       #bet-container {
-        position: absolute;
-        top: 620px; /* 遊戲下方 */
-        left: 10px;
+        position: absolute; left:10px; top:620px;
         color: #fff;
       }
-      #betInput {
-        width: 80px;
-      }
+      #betInput { width:80px; }
       #homeBtn {
         position: absolute;
-        top: 620px;
-        left: 200px;
-        color: #fff;
-        background: #444;
-        padding: 6px 12px;
-        text-decoration: none;
-        border: 1px solid #666;
-        border-radius: 4px;
+        top:620px; left:200px;
+        color:#fff; background:#444;
+        padding:6px 12px; border:1px solid #666;
+        border-radius:4px; text-decoration: none;
       }
     </style>
   </head>
   <body>
     <div id="game-container"></div>
-
-    <!-- 獎勵紀錄框 -->
     <div id="reward-box">
       <h3>獎勵紀錄</h3>
       <div id="reward-logs">尚無紀錄</div>
     </div>
-
-    <!-- BET 輸入框 & 回首頁按鈕 (DOM) -->
     <div id="bet-container">
       <label for="betInput">BET:</label>
       <input type="number" id="betInput" value="10" min="1" max="9999" step="1">
     </div>
-    <!-- 回到會員首頁 (自行修改 href 到正確路徑) -->
+    <!-- 回首頁按鈕 -->
     <a id="homeBtn" href="/members/home">回會員首頁</a>
 
-    <!-- Django 模板變數：user_id, points -->
+    <!-- Django 變數 -->
     <script>
       let userId = {{ user_id|default:0 }};
       let currentPoints = {{ points|default:0 }};
     </script>
 
     <script>
+      // Phaser 設定
       const config = {
         type: Phaser.AUTO,
         width: 800,
@@ -92,14 +63,14 @@
       let spinning = false;
       let autoSpinCount = 0;
 
-      // 總轉動 3秒 => Phase1= 1s, Phase2= 2s
-      const PHASE1_DURATION = 500; 
-      const PHASE2_DURATION = 2500;
+      // 三秒 => 前1秒(Phase1),後2秒(Phase2)
+      const PHASE1_DURATION = 1000;
+      const PHASE2_DURATION = 2000;
 
-      function preload() {
+      function preload(){
         // 載入外框
         this.load.image("machineFrame", "/static/casino/slot_frame.png");
-        // 載入符號
+        // 符號
         this.load.image("symbol1", "/static/casino/symbol1.png");
         this.load.image("symbol2", "/static/casino/symbol2.png");
         this.load.image("symbol3", "/static/casino/symbol3.png");
@@ -107,62 +78,58 @@
         this.load.image("wild",    "/static/casino/wild.png");
       }
 
-      function create() {
-        const scene = this;
+      function create(){
+        const scene=this;
 
-        // 建立 3 個容器(各放 3個 sprite)
-        let reelPositions = [
-          { x: 400-145, y: 290 },
-          { x: 400,     y: 290 },
-          { x: 400+145, y: 290 }
+        // 1) 建立3個容器
+        let reelPositions=[
+          { x:400-145, y:290 },
+          { x:400,     y:290 },
+          { x:400+145, y:290 }
         ];
         reelPositions.forEach(pos=>{
-          let c = scene.add.container(pos.x, pos.y);
-          // 上/中/下
-          for(let i=0; i<3; i++){
-            let spr = scene.add.sprite(0,(i-1)*80, pickRandomSymbol());
+          let c=scene.add.container(pos.x,pos.y);
+          for(let i=0;i<3;i++){
+            let spr=scene.add.sprite(0,(i-1)*80, pickRandomSymbol());
             c.add(spr);
           }
           reelContainers.push(c);
         });
 
-        // 外框
-        scene.add.image(400, 300, "machineFrame").setScale(2).setDepth(10);
+        // 2) 外框
+        scene.add.image(400,300,"machineFrame").setScale(2).setDepth(10);
 
-        // Geometry Mask
-        let maskRect = scene.add.rectangle(400,300,440,180,0x00ff00,0).setDepth(15);
-        let reelMask = maskRect.createGeometryMask();
-        reelContainers.forEach(c => c.setMask(reelMask));
+        // 3) Mask
+        let maskRect=scene.add.rectangle(400,300,440,180,0x00ff00,0).setDepth(15);
+        let reelMask=maskRect.createGeometryMask();
+        reelContainers.forEach(c=> c.setMask(reelMask));
 
-        // Points
-        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
+        // 4) Points
+        scene.pointText=scene.add.text(10,10, `Points: ${currentPoints}`, {
           fontSize:'24px', color:'#FFD700'
         });
 
-        // SPIN 按鈕
-        let spinBtn = scene.add.text(400,500, "SPIN", {
-          fontSize:'32px', backgroundColor:'#cc0000', color:'#fff', padding:{x:20,y:10}
+        // 5) SPIN
+        let spinBtn= scene.add.text(400,500,"SPIN",{
+          fontSize:'32px', backgroundColor:'#cc0000', color:'#fff',padding:{x:20,y:10}
         }).setOrigin(0.5).setInteractive();
-        spinBtn.on('pointerdown', () => {
+        spinBtn.on('pointerdown', ()=>{
           if(!spinning){
-            // 從 DOM 讀取 BET 數字
-            let betInput = document.getElementById("betInput");
-            let betAmount = parseInt(betInput.value,10) || 10;
+            let betAmount=getBetValue();
             startSpinAPI(scene, userId, betAmount);
           }
         });
 
-        // 自動轉
+        // 6) 自動轉
         scene.add.text(600,480,"自動轉:", {fontSize:'20px',color:'#fff'}).setDepth(20);
         let autoOpts=[30,50,100];
         autoOpts.forEach((opt,i)=>{
-          let autoBtn = scene.add.text(600, 500+i*25, `${opt}次`, {
-            fontSize:'18px', backgroundColor:'#555', color:'#fff', padding:{x:5,y:2}
+          let autoBtn=scene.add.text(600, 500+i*25, `${opt}次`,{
+            fontSize:'18px',backgroundColor:'#555',color:'#fff',padding:{x:5,y:2}
           }).setInteractive().setDepth(20);
-          autoBtn.on('pointerdown', ()=>{
-            if(!spinning && autoSpinCount===0){
-              let betInput = document.getElementById("betInput");
-              let betAmount = parseInt(betInput.value,10) || 10;
+          autoBtn.on('pointerdown',()=>{
+            if(!spinning&&autoSpinCount===0){
+              let betAmount=getBetValue();
               autoSpinCount=opt;
               startSpinAPI(scene, userId, betAmount);
             }
@@ -170,7 +137,14 @@
         });
       }
 
-      function update() {}
+      function update(){}
+
+      // 抓 BET 數字
+      function getBetValue(){
+        let betInput=document.getElementById("betInput");
+        let val=parseInt(betInput.value,10)||10;
+        return val;
+      }
 
       // 呼叫後端
       function startSpinAPI(scene, userId, bet){
@@ -187,16 +161,14 @@
         .then(data=>{
           if(data.error){
             alert(data.error);
-            spinning=false;
-            autoSpinCount=0;
+            spinning=false; autoSpinCount=0;
             return;
           }
           spinReelsSequentially(scene, data.reels, data.win_amount, data.current_points, bet);
         })
         .catch(err=>{
-          console.error("API Error:",err);
-          spinning=false; 
-          autoSpinCount=0;
+          console.error("API Error:", err);
+          spinning=false; autoSpinCount=0;
         });
       }
 
@@ -205,12 +177,10 @@
         let index=0;
         function spinNext(){
           if(index>=reelContainers.length){
-            // 全部完成
             spinning=false;
             currentPoints=newPoints;
             scene.pointText.setText(`Points: ${currentPoints}`);
             if(win>0) addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
-            // 自動轉
             if(autoSpinCount>0){
               autoSpinCount--;
               if(autoSpinCount>0){
@@ -219,7 +189,6 @@
             }
             return;
           }
-          // Phase1=1秒 => Phase2=2秒
           doPhase1(scene, reelContainers[index], PHASE1_DURATION, ()=>{
             doPhase2(scene, reelContainers[index], reelResults[index], PHASE2_DURATION, ()=>{
               index++;
@@ -230,24 +199,23 @@
         spinNext();
       }
 
-      // ========== Phase1: 1秒固定速度+隨機換圖 ==========
+      // Phase1: 前1秒固定速度+隨機
       function doPhase1(scene, container, duration, onComplete){
-        let startTime= scene.time.now;
+        let startTime=scene.time.now;
         let speed=25;
 
         let phase1Event= scene.time.addEvent({
-          delay:40,
-          loop:true,
+          delay:40, loop:true,
           callback:()=>{
-            let elapsed= scene.time.now - startTime;
+            let elapsed=scene.time.now - startTime;
             if(elapsed>=duration){
               phase1Event.remove();
               if(onComplete) onComplete();
               return;
             }
-            // 固定速度
+            // 固定速度+隨機
             container.list.forEach(spr=>{
-              spr.y += speed;
+              spr.y+=speed;
               if(spr.y>80){
                 spr.y-=240;
                 spr.setTexture(pickRandomSymbol());
@@ -257,23 +225,21 @@
         });
       }
 
-      // ========== Phase2: 2秒漸減速，不換圖 ==========
+      // Phase2: 後2秒漸減速, 不換圖 => 最終 "上方且離中心最近" sprite
       function doPhase2(scene, container, finalKey, duration, onComplete){
         let startTime= scene.time.now;
         let baseSpeed=25;
-
         let phase2Event= scene.time.addEvent({
-          delay:40,
-          loop:true,
+          delay:40, loop:true,
           callback:()=>{
             let elapsed= scene.time.now - startTime;
             let ratio= elapsed/duration;
             let curSpeed= baseSpeed*(1-ratio);
             if(curSpeed<2) curSpeed=2;
 
+            // 只移動 不換圖
             container.list.forEach(spr=>{
-              spr.y += curSpeed;
-              // 不換圖
+              spr.y+=curSpeed;
               if(spr.y>80){
                 spr.y-=240;
               }
@@ -281,26 +247,48 @@
 
             if(elapsed>=duration){
               phase2Event.remove();
-              // 校正 => 最接近y=0的 sprite
-              let midSpr= findClosestToZero(container);
-              let offset= midSpr.y;
+              // 找最上方但距 y=0 最近
+              let topSpr=findUpperClosestToCenter(container);
+              let offset=topSpr.y;
               container.list.forEach(s=> s.y-=offset);
-              // 最終符號
-              midSpr.setTexture(finalKey);
+              // topSpr 換最終符號
+              topSpr.setTexture(finalKey);
+
               if(onComplete) onComplete();
             }
           }
         });
       }
 
-      // 輔助函式
+      // 挑隨機符號
       function pickRandomSymbol(){
         let syms=["symbol1","symbol2","symbol3","symbol4","wild"];
         return Phaser.Utils.Array.GetRandom(syms);
       }
 
+      // 找最上方 但最接近 y=0 的 sprite
+      function findUpperClosestToCenter(container){
+        let bestSpr=null, bestDist= Infinity;
+        // 只考慮 y <= 0
+        container.list.forEach(spr=>{
+          if(spr.y <= 0){
+            let dist=Math.abs(spr.y);
+            if(dist<bestDist){
+              bestDist=dist;
+              bestSpr=spr;
+            }
+          }
+        });
+        // 若全都 y>0, 則退而求最近
+        if(!bestSpr){
+          bestSpr = findClosestToZero(container);
+        }
+        return bestSpr;
+      }
+
+      // 若上面都沒有 => 取最接近 y=0
       function findClosestToZero(container){
-        let minDist=99999, target=null;
+        let target=null, minDist=99999;
         container.list.forEach(s=>{
           let d=Math.abs(s.y);
           if(d<minDist){
@@ -310,6 +298,7 @@
         return target;
       }
 
+      // 獎勵紀錄
       function addRewardLog(text){
         let logDiv=document.getElementById("reward-logs");
         if(!logDiv)return;
