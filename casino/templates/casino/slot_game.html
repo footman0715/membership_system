@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機 Demo：方案A + 遮罩上方 + 右側紀錄 + 下方BET/自動轉/回首頁</title>
+    <title>拉霸機 Demo：方案A + 遮罩上方 + 調高20px</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
       body {
@@ -118,55 +118,64 @@
       }
 
       function create(){
-        const scene=this;
+        const scene = this;
 
-        // 建3個捲軸容器 (3 sprite each)
-        let reelPositions=[ {x:255,y:300}, {x:400,y:300}, {x:545,y:300} ];
-        reelPositions.forEach(pos=>{
-          let c= scene.add.container(pos.x,pos.y);
-          for(let i=0;i<3;i++){
-            let spr= scene.add.sprite(0,(i-1)*80,"symbol1");
+        // ====== 1) 建3個捲軸容器 (向上移動約20px) ======
+        // 原本 y=300, 現在 y=280
+        let reelPositions = [
+          {x: 255, y: 280},
+          {x: 400, y: 280},
+          {x: 545, y: 280}
+        ];
+        reelPositions.forEach(pos => {
+          let c = scene.add.container(pos.x, pos.y);
+          for(let i=0; i<3; i++){
+            // sprite 同樣 (i-1)*80
+            let spr = scene.add.sprite(0, (i-1)*80, "symbol1");
             c.add(spr);
           }
           reelContainers.push(c);
         });
 
-        // 外框
-        scene.add.image(400,300,"machineFrame").setScale(2).setDepth(10);
+        // ====== 2) 外框 ======
+        // 位置不變 => (400,300) scale(2)
+        scene.add.image(400, 300, "machineFrame").setScale(2).setDepth(10);
 
-        // 遮住「上方」=> Geometry Mask
-        // 例如 只顯示 y>= 250 ~ 550
-        let maskRect= scene.add.rectangle(400, 300, 440, 200, 0x00ff00,0);
-        // 這個 rectangle 中心在 (400,400), 高180 => 顯示 y=310~490
-        // 視需要微調
+        // ====== 3) Mask, 調整中心 y=280 + ??? ======
+        // 原本 (400,300), 現在可上移 => (400, 280 + ???)
+        // 若你要只顯示下方(不看上方), 讓中下部可見
+        // 這裡試 (400,280+20=300), 依需求微調
+        let maskRect = scene.add.rectangle(400, 300, 440, 196, 0x00ff00, 0);
         const reelMask = maskRect.createGeometryMask();
         reelContainers.forEach(c => c.setMask(reelMask));
 
-        // 顯示 points
-        scene.add.text(10,10, `Points: ${currentPoints}`,{
-          fontSize:'24px', color:'#FFD700'
+        // ====== 4) 顯示 points ======
+        scene.add.text(10, 10, `Points: ${currentPoints}`, {
+          fontSize:'24px',
+          color:'#FFD700'
         });
 
-        // Spin 按鈕
-        let spinText= scene.add.text(400,500,"SPIN",{
+        // ====== 5) Spin 按鈕 ======
+        let spinText = scene.add.text(400, 500, "SPIN", {
           fontSize:'32px', backgroundColor:'#cc0000', color:'#fff', padding:{x:20,y:10}
         }).setOrigin(0.5).setInteractive();
-        spinText.on('pointerdown', ()=>{
+
+        spinText.on('pointerdown', () => {
           if(!spinning){
-            let bet = getBetValue();
-            startSpinAPI(scene, userId, bet);
+            let betVal = getBetValue();
+            startSpinAPI(scene, userId, betVal);
           }
         });
 
-        // 自動轉按鈕
+        // ====== 6) 自動轉按鈕 ======
         let autoButtons = document.querySelectorAll(".auto-btn");
-        autoButtons.forEach(btn=>{
-          btn.addEventListener("click", ()=>{
+        autoButtons.forEach(btn => {
+          btn.addEventListener("click", () => {
             if(!spinning && autoSpinCount===0){
               let times = parseInt(btn.dataset.times,10)||30;
-              autoSpinCount= times;
-              let bet=getBetValue();
-              startSpinAPI(scene, userId, bet);
+              autoSpinCount = times;
+              let betVal = getBetValue();
+              startSpinAPI(scene, userId, betVal);
             }
           });
         });
@@ -174,36 +183,39 @@
 
       function update(){}
 
+      // 讀取下方 BET 輸入框
       function getBetValue(){
-        let inp= document.getElementById("betInput");
-        let val= parseInt(inp.value,10) || 10;
+        let inp = document.getElementById("betInput");
+        let val = parseInt(inp.value,10) || 10;
         return val;
       }
 
       function startSpinAPI(scene, userId, bet){
-        spinning=true;
+        spinning = true;
         fetch("/casino/slot/spin/", {
-          method:"POST",
-          headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body:new URLSearchParams({ user_id:userId, bet:bet })
+          method: "POST",
+          headers: {"Content-Type":"application/x-www-form-urlencoded"},
+          body: new URLSearchParams({ user_id:userId, bet:bet })
         })
         .then(r=>r.json())
         .then(data=>{
           if(data.error){
             alert(data.error);
-            spinning=false; autoSpinCount=0;
+            spinning=false; 
+            autoSpinCount=0;
             return;
           }
-          reelSequences= data.reelSequences; // 3 條序列
-          doPhase1(scene, PHASE1_DURATION, ()=>{
-            doPhase2(scene, PHASE2_DURATION, ()=>{
+          reelSequences = data.reelSequences; // 3 條序列(每條 12 個符號等)
+          doPhase1(scene, PHASE1_DURATION, () => {
+            doPhase2(scene, PHASE2_DURATION, () => {
+              // 最終停下
               spinning=false;
-              currentPoints= data.current_points;
-              // 顯示贏分
+              currentPoints = data.current_points;
+              // 若中獎 => 紀錄
               if(data.win_amount>0){
                 addRewardLog(`贏了 ${data.win_amount} 點 (BET=${bet})`);
               }
-              // 若自動轉
+              // 若有自動轉
               if(autoSpinCount>0){
                 autoSpinCount--;
                 if(autoSpinCount>0){
@@ -220,15 +232,16 @@
         });
       }
 
-      // Phase1: 1s,固定速度 => spr.y>80 => shift 符號
+      // ========== Phase1：1秒, 亂跳 => shift 符號 ==========
       function doPhase1(scene, duration, onComplete){
-        let startTime= scene.time.now;
+        let startTime = scene.time.now;
         let speed=25;
-        let e= scene.time.addEvent({
-          delay:40, loop:true,
+        let e = scene.time.addEvent({
+          delay:40,
+          loop:true,
           callback:()=>{
             let elapsed= scene.time.now - startTime;
-            if(elapsed>= duration){
+            if(elapsed>=duration){
               e.remove();
               if(onComplete) onComplete();
               return;
@@ -238,8 +251,9 @@
                 spr.y+= speed;
                 if(spr.y>80){
                   spr.y-=240;
+                  // 從 reelSequences[i] 拿下一個符號
                   if(reelSequences[i].length>0){
-                    let nextSym= reelSequences[i].shift();
+                    let nextSym = reelSequences[i].shift();
                     spr.setTexture(nextSym);
                   }
                 }
@@ -249,15 +263,16 @@
         });
       }
 
-      // Phase2: 2s, 漸減速 => 不再取符號
+      // ========== Phase2：2秒, 漸減速 => 不再換圖 ==========
       function doPhase2(scene, duration, onComplete){
         let startTime= scene.time.now;
         let baseSpeed=25;
         let e= scene.time.addEvent({
-          delay:40, loop:true,
+          delay:40,
+          loop:true,
           callback:()=>{
             let elapsed= scene.time.now - startTime;
-            if(elapsed>= duration){
+            if(elapsed>=duration){
               e.remove();
               if(onComplete) onComplete();
               return;
@@ -265,9 +280,10 @@
             let ratio= elapsed/duration;
             let curSpeed= baseSpeed*(1-ratio);
             if(curSpeed<2) curSpeed=2;
+
             reelContainers.forEach(c=>{
               c.list.forEach(spr=>{
-                spr.y+= curSpeed;
+                spr.y += curSpeed;
                 if(spr.y>80){
                   spr.y-=240;
                   // 不再換圖
@@ -278,13 +294,14 @@
         });
       }
 
+      // 獎勵紀錄
       function addRewardLog(msg){
         const box= document.getElementById("reward-logs");
         if(!box)return;
         if(box.innerHTML==="尚無紀錄") box.innerHTML="";
-        const now= new Date();
-        const line= `[${now.toLocaleTimeString()}] ${msg}`;
-        box.innerHTML += line + "<br/>";
+        const now=new Date();
+        const line=`[${now.toLocaleTimeString()}] ${msg}`;
+        box.innerHTML += line+"<br/>";
         box.scrollTop= box.scrollHeight;
       }
     </script>
