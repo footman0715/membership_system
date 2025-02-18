@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機 Demo：改良停下 & Mask & 自動轉位置</title>
+    <title>拉霸機 Demo：提前停止換圖（方案一）</title>
     <!-- 引入 Phaser 3 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
@@ -70,7 +70,7 @@
       function create() {
         const scene = this;
 
-        // 1) 建立捲軸容器
+        // 1) 建立捲軸容器(各放3個sprite)
         const reelPositions = [
           { x: 400 - 145, y: 300 - 10 },
           { x: 400,       y: 300 - 10 },
@@ -87,32 +87,28 @@
           reelContainers.push(c);
         });
 
-        // 2) 外框 (放最上層)
+        // 2) 外框 (最上層)
         scene.add.image(400, 300, "machineFrame").setScale(2).setDepth(10);
 
         // 3) Geometry Mask：只顯示外框範圍
-        //    做一個比外框略小的矩形(寬 ~ 400, 高 ~ 160 可自行微調)
+        //    做一個矩形 (寬 440, 高 180，可微調)
         const maskRect = scene.add.rectangle(400, 300, 440, 180, 0x00ff00, 0);
-        maskRect.setDepth(15); // mask 元件本身位置不重要, 也可 setVisible(false)
+        maskRect.setDepth(15);
         const reelMask = maskRect.createGeometryMask();
+        reelContainers.forEach(c => c.setMask(reelMask));
 
-        // 將捲軸容器都套用該 Mask
-        reelContainers.forEach(c => {
-          c.setMask(reelMask);
-        });
-
-        // 4) Points 顯示
+        // 4) 分數顯示
         scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
           fontSize: '24px', color: '#FFD700'
         });
 
-        // 5) 下注顯示 & 可點擊增加
+        // 5) 下注：點擊 +10，上限100，循環
         scene.betText = scene.add.text(300, 560, `BET: ${betAmount}`, {
           fontSize: '20px', color: '#fff'
         });
         scene.betText.setInteractive().on('pointerdown', () => {
           betAmount += 10;
-          if(betAmount>100) betAmount=10;
+          if(betAmount > 100) betAmount = 10;
           scene.betText.setText(`BET: ${betAmount}`);
         });
 
@@ -121,13 +117,13 @@
           fontSize:'32px', backgroundColor:'#cc0000', color:'#fff', padding:{x:20,y:10}
         }).setOrigin(0.5).setInteractive();
         spinButton.on('pointerdown', () => {
-          if(!spinning){
+          if(!spinning) {
             startSpinAPI(scene, userId, betAmount);
           }
         });
 
-        // 7) 自動轉按鈕 - 放在上面 (x=600, y=250 之類)
-        scene.add.text(600, 480, "自動轉:", {fontSize:'20px', color:'#fff'});
+        // 7) 自動轉按鈕 - 放畫面下方(x=600,y=480)
+        scene.add.text(600, 480, "自動轉:", {fontSize:'20px', color:'#fff'}).setDepth(20);
 
         let autoOpts = [30, 50, 100];
         autoOpts.forEach((opt, i) => {
@@ -135,7 +131,7 @@
             fontSize:'18px', backgroundColor:'#555', color:'#fff', padding:{x:5,y:2}
           })
           .setInteractive()
-          .setDepth(20);  // 深度=20;
+          .setDepth(20);
           autoBtn.on('pointerdown', () => {
             if(!spinning && autoSpinCount===0){
               autoSpinCount=opt;
@@ -145,54 +141,58 @@
         });
       }
 
-      function update() {}
+      function update() {
+        // ...
+      }
 
-      // -------------------------------
-      // 呼叫後端API
-      // -------------------------------
-      function startSpinAPI(scene, userId, bet){
-        spinning=true;
+      // -------------------------------------
+      // 呼叫後端 API
+      // -------------------------------------
+      function startSpinAPI(scene, userId, bet) {
+        spinning = true;
         fetch("/casino/slot/spin/", {
-          method:"POST",
-          headers: {"Content-Type":"application/x-www-form-urlencoded"},
-          body:new URLSearchParams({ user_id:userId, bet:bet })
+          method: "POST",
+          headers: {"Content-Type": "application/x-www-form-urlencoded"},
+          body: new URLSearchParams({ user_id: userId, bet: bet })
         })
-        .then(r=>r.json())
-        .then(data=>{
+        .then(res => res.json())
+        .then(data => {
           if(data.error){
             alert(data.error);
-            spinning=false;
-            autoSpinCount=0;
+            spinning = false;
+            autoSpinCount = 0;
             return;
           }
           spinReelsSequentially(scene, data.reels, data.win_amount, data.current_points, bet);
         })
-        .catch(err=>{
-          console.error("API Error:",err);
-          spinning=false;
-          autoSpinCount=0;
+        .catch(err => {
+          console.error("API Error:", err);
+          spinning = false;
+          autoSpinCount = 0;
         });
       }
 
-      // -------------------------------
+      // -------------------------------------
       // 依序轉動 3個捲軸
-      // -------------------------------
+      // -------------------------------------
       function spinReelsSequentially(scene, reelResults, win, newPoints, usedBet){
-        let index=0;
-        let spinDuration=2200;
+        let index = 0;
+        let spinDuration = 2200; // 每個捲軸轉 ~2.2秒
 
         function spinNext(){
-          if(index>=reelContainers.length){
+          if(index >= reelContainers.length){
             // 全部結束
-            spinning=false;
-            currentPoints=newPoints;
+            spinning = false;
+            currentPoints = newPoints;
             scene.pointText.setText(`Points: ${currentPoints}`);
 
-            // 若贏分, 加入紀錄
-            if(win>0) addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
+            // 若有贏分 => 紀錄
+            if(win > 0){
+              addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
+            }
 
             // 自動轉
-            if(autoSpinCount>0){
+            if(autoSpinCount > 0){
               autoSpinCount--;
               if(autoSpinCount>0){
                 startSpinAPI(scene, userId, usedBet);
@@ -200,7 +200,7 @@
             }
             return;
           }
-          spinOneReelEaseOut(scene, reelContainers[index], reelResults[index], spinDuration, ()=>{
+          spinOneReelEaseOut(scene, reelContainers[index], reelResults[index], spinDuration, () => {
             index++;
             spinNext();
           });
@@ -208,40 +208,48 @@
         spinNext();
       }
 
-      // -------------------------------
-      // 單一捲軸 漸減速 停在中心
-      // -------------------------------
+      // -------------------------------------
+      // 單一捲軸「漸減速」+「提前停止換圖」
+      // -------------------------------------
       function spinOneReelEaseOut(scene, container, finalKey, duration, onStop){
-        let startTime=scene.time.now;
-        let baseSpeed=25; //初始速度
+        let startTime = scene.time.now;
+        let baseSpeed = 25; // 初始速度
+        let spinEvent = scene.time.addEvent({
+          delay: 20, // 每 20ms 更新
+          loop: true,
+          callback: () => {
+            let elapsed = scene.time.now - startTime;
+            let ratio = elapsed / duration;
 
-        let spinEvent=scene.time.addEvent({
-          delay:20,
-          loop:true,
-          callback: ()=>{
-            let elapsed= scene.time.now - startTime;
-            let ratio= elapsed/duration;
-            // ease out speed
-            let currentSpeed= baseSpeed*(1-ratio);
-            if(currentSpeed<2) currentSpeed=2; // 最低速度
+            // 漸減速
+            let currentSpeed = baseSpeed * (1 - ratio);
+            if(currentSpeed < 2) currentSpeed = 2;
 
-            // 向下移動
-            container.list.forEach(spr=>{
+            container.list.forEach(spr => {
               spr.y += currentSpeed;
-              // 若 y>80 =>移到最上面, 且 random texture (若還在spin階段)
-              if(spr.y>80 && elapsed < duration-80) {
-                spr.y-=240;
-                let possible=["symbol1","symbol2","symbol3","symbol4","wild"];
-                spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
+              // 只在「還有 >=80ms 時」才隨機換圖，避免最後瞬間跳動
+              if(spr.y > 80) {
+                if(elapsed < duration - 160) {
+                  // 提前停止換圖
+                  spr.y -= 240;
+                  let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
+                  spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
+                } else {
+                  // 還是要移到上方，但不換圖
+                  spr.y -= 240;
+                }
               }
             });
 
-            if(elapsed>=duration){
+            // 時間到 => 停止
+            if(elapsed >= duration){
               spinEvent.remove();
-              // 校正
-              let middleSpr=findClosestToZero(container);
-              let offset= middleSpr.y;
-              container.list.forEach(s=>{ s.y-=offset; });
+              // 校正 => 中間 sprite y=0
+              let middleSpr = findClosestToZero(container);
+              let offset = middleSpr.y;
+              container.list.forEach(s => {
+                s.y -= offset;
+              });
               // 用最終符號
               middleSpr.setTexture(finalKey);
               if(onStop) onStop();
@@ -250,29 +258,32 @@
         });
       }
 
+      // 找出最接近 y=0 的 sprite
       function findClosestToZero(container){
-        let t=null; let minDist=99999;
-        container.list.forEach(spr=>{
-          let d=Math.abs(spr.y);
-          if(d<minDist){ minDist=d; t=spr;}
+        let target = null; 
+        let minDist = Infinity;
+        container.list.forEach(spr => {
+          let d = Math.abs(spr.y);
+          if(d < minDist){
+            minDist = d;
+            target = spr;
+          }
         });
-        return t;
+        return target;
       }
 
-      // -------------------------------
       // 獎勵紀錄
-      // -------------------------------
       function addRewardLog(text){
         let logDiv = document.getElementById("reward-logs");
         if(!logDiv) return;
-        if(logDiv.innerHTML==="尚無紀錄"){
-          logDiv.innerHTML="";
+        if(logDiv.innerHTML === "尚無紀錄"){
+          logDiv.innerHTML = "";
         }
-        let now=new Date();
-        let timeStr=now.toLocaleTimeString();
-        let line=`[${timeStr}] ${text}`;
-        logDiv.innerHTML+=line+"<br/>";
-        logDiv.scrollTop= logDiv.scrollHeight;
+        let now = new Date();
+        let timeStr = now.toLocaleTimeString();
+        let line = `[${timeStr}] ${text}`;
+        logDiv.innerHTML += line + "<br/>";
+        logDiv.scrollTop = logDiv.scrollHeight;
       }
     </script>
   </body>
