@@ -2,14 +2,14 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>拉霸機 Demo：慢慢停下、自訂下注、自動轉</title>
+    <title>拉霸機 Demo：改良停下 & Mask & 自動轉位置</title>
     <!-- 引入 Phaser 3 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-      /* 讓右側紀錄框定位在遊戲畫面旁邊 */
+      /* 給獎勵紀錄框 */
       #reward-box {
         position: absolute;
-        left: 820px;
+        left: 820px; /* 遊戲寬 800 + 20px */
         top: 10px;
         width: 200px;
         height: 580px;
@@ -18,6 +18,9 @@
         color: #fff;
         overflow-y: auto;
         padding: 10px;
+      }
+      #reward-box h3 {
+        margin: 5px 0;
       }
     </style>
   </head>
@@ -35,7 +38,6 @@
     </script>
 
     <script>
-      // Phaser 設定
       const config = {
         type: Phaser.AUTO,
         width: 800,
@@ -49,14 +51,13 @@
       };
       const game = new Phaser.Game(config);
 
-      // 全域變數
       let reelContainers = [];
       let spinning = false;
-      let autoSpinCount = 0;  // 自動轉剩餘次數
-      let betAmount = 10;     // 初始下注
+      let autoSpinCount = 0;
+      let betAmount = 10;
 
       function preload() {
-        // 載入外框圖 (229×102 => 放大2倍)
+        // 載入外框圖 (229×102 =>放大2倍)
         this.load.image("machineFrame", "/static/casino/slot_frame.png");
         // 載入符號
         this.load.image("symbol1", "/static/casino/symbol1.png");
@@ -76,123 +77,130 @@
           { x: 400 + 145, y: 300 - 10 }
         ];
 
-        // 讓每個容器內有 3 個 sprite (上/中/下)
         reelPositions.forEach(pos => {
-          let container = scene.add.container(pos.x, pos.y);
-          // 放3個符號
+          let c = scene.add.container(pos.x, pos.y);
+          // 放 3 個 sprite (上/中/下)
           for(let i=0; i<3; i++){
             let spr = scene.add.sprite(0, (i-1)*80, Phaser.Utils.Array.GetRandom(["symbol1","symbol2","symbol3","symbol4","wild"]));
-            container.add(spr);
+            c.add(spr);
           }
-          reelContainers.push(container);
+          reelContainers.push(c);
         });
 
-        // 2) 外框
-        scene.add.image(400, 300, "machineFrame").setScale(2);
+        // 2) 外框 (放最上層)
+        scene.add.image(400, 300, "machineFrame").setScale(2).setDepth(10);
 
-        // 3) 顯示積分
-        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, { fontSize: '24px', color: '#FFD700' });
+        // 3) Geometry Mask：只顯示外框範圍
+        //    做一個比外框略小的矩形(寬 ~ 400, 高 ~ 160 可自行微調)
+        const maskRect = scene.add.rectangle(400, 300, 440, 180, 0x00ff00, 0);
+        maskRect.setDepth(15); // mask 元件本身位置不重要, 也可 setVisible(false)
+        const reelMask = maskRect.createGeometryMask();
 
-        // 4) 下方：輸入下注額
-        // 簡化：用 Phaser text + interactive 來 +/- 下注；也可用 DOM input
-        scene.betText = scene.add.text(300, 550, `BET: ${betAmount}`, { fontSize: '20px', color: '#fff' });
+        // 將捲軸容器都套用該 Mask
+        reelContainers.forEach(c => {
+          c.setMask(reelMask);
+        });
+
+        // 4) Points 顯示
+        scene.pointText = scene.add.text(10, 10, `Points: ${currentPoints}`, {
+          fontSize: '24px', color: '#FFD700'
+        });
+
+        // 5) 下注顯示 & 可點擊增加
+        scene.betText = scene.add.text(300, 560, `BET: ${betAmount}`, {
+          fontSize: '20px', color: '#fff'
+        });
         scene.betText.setInteractive().on('pointerdown', () => {
-          // 每點一次 +10，超過100則回到10
           betAmount += 10;
-          if(betAmount > 100) betAmount = 10;
+          if(betAmount>100) betAmount=10;
           scene.betText.setText(`BET: ${betAmount}`);
         });
 
-        // 5) Spin 按鈕
+        // 6) SPIN 按鈕
         const spinButton = scene.add.text(400, 500, "SPIN", {
-          fontSize: '32px', backgroundColor: '#cc0000', color: '#fff', padding: { x: 20, y: 10 }
+          fontSize:'32px', backgroundColor:'#cc0000', color:'#fff', padding:{x:20,y:10}
         }).setOrigin(0.5).setInteractive();
         spinButton.on('pointerdown', () => {
-          if(!spinning) {
+          if(!spinning){
             startSpinAPI(scene, userId, betAmount);
           }
         });
 
-        // 6) AutoSpin 選單 (簡易 text 互動)
-        //    當玩家點擊 -> 自動轉 n 次
+        // 7) 自動轉按鈕 - 放在上面 (x=600, y=250 之類)
+        scene.add.text(600, 220, "自動轉:", {fontSize:'20px', color:'#fff'});
+
         let autoOpts = [30, 50, 100];
-        let baseX = 600, baseY = 540;
-        scene.add.text(baseX - 30, baseY - 20, "自動轉:", { fontSize:'20px', color:'#fff' });
         autoOpts.forEach((opt, i) => {
-          let autoBtn = scene.add.text(baseX, baseY + i*25, `${opt}次`, { fontSize:'18px', backgroundColor:'#555', color:'#fff', padding:{x:5,y:2} })
-            .setInteractive();
+          let autoBtn = scene.add.text(600, 500 + i*25, `${opt}次`, {
+            fontSize:'18px', backgroundColor:'#555', color:'#fff', padding:{x:5,y:2}
+          })
+          .setInteractive()
+          .setDepth(20);  // 深度=20;
           autoBtn.on('pointerdown', () => {
-            if(!spinning && autoSpinCount===0) {
-              autoSpinCount = opt;
+            if(!spinning && autoSpinCount===0){
+              autoSpinCount=opt;
               startSpinAPI(scene, userId, betAmount);
             }
           });
         });
       }
 
-      function update() {
-        // ...
-      }
+      function update() {}
 
-      // -------------------------------------------
-      // 呼叫後端 API
-      // -------------------------------------------
-      function startSpinAPI(scene, userId, bet) {
-        spinning = true;
-
+      // -------------------------------
+      // 呼叫後端API
+      // -------------------------------
+      function startSpinAPI(scene, userId, bet){
+        spinning=true;
         fetch("/casino/slot/spin/", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ user_id: userId, bet: bet })
+          method:"POST",
+          headers: {"Content-Type":"application/x-www-form-urlencoded"},
+          body:new URLSearchParams({ user_id:userId, bet:bet })
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(r=>r.json())
+        .then(data=>{
           if(data.error){
             alert(data.error);
-            spinning = false;
-            autoSpinCount = 0; // 取消自動
+            spinning=false;
+            autoSpinCount=0;
             return;
           }
-          // data = { reels:["symbol1","wild","symbol2"], win_amount, current_points }
           spinReelsSequentially(scene, data.reels, data.win_amount, data.current_points, bet);
         })
-        .catch(err => {
-          console.error("API Error:", err);
-          spinning = false;
-          autoSpinCount = 0; // 取消自動
+        .catch(err=>{
+          console.error("API Error:",err);
+          spinning=false;
+          autoSpinCount=0;
         });
       }
 
-      // -------------------------------------------------
-      // 依序轉動捲軸: 第0個 -> 第1個 -> 第2個
-      // -------------------------------------------------
-      function spinReelsSequentially(scene, reelResults, win, newPoints, usedBet) {
-        let index = 0;
-        let spinDuration = 2200; // 每個捲軸轉 ~2.2秒 (可再調)
+      // -------------------------------
+      // 依序轉動 3個捲軸
+      // -------------------------------
+      function spinReelsSequentially(scene, reelResults, win, newPoints, usedBet){
+        let index=0;
+        let spinDuration=2200;
 
-        function spinNext() {
-          if(index >= reelContainers.length) {
-            // 全部停了 => 更新分數
-            spinning = false;
-            currentPoints = newPoints;
+        function spinNext(){
+          if(index>=reelContainers.length){
+            // 全部結束
+            spinning=false;
+            currentPoints=newPoints;
             scene.pointText.setText(`Points: ${currentPoints}`);
 
-            // 若中獎 -> 加入紀錄框
-            if(win > 0){
-              addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
-            }
+            // 若贏分, 加入紀錄
+            if(win>0) addRewardLog(`贏了 ${win} 點 (BET=${usedBet})`);
 
-            // 若還有自動次數 -> 繼續 SPIN
-            if(autoSpinCount>0) {
+            // 自動轉
+            if(autoSpinCount>0){
               autoSpinCount--;
-              if(autoSpinCount>0) {
+              if(autoSpinCount>0){
                 startSpinAPI(scene, userId, usedBet);
               }
             }
             return;
           }
-          // 轉動第 index 個捲軸
-          spinOneReelEaseOut(scene, reelContainers[index], reelResults[index], spinDuration, () => {
+          spinOneReelEaseOut(scene, reelContainers[index], reelResults[index], spinDuration, ()=>{
             index++;
             spinNext();
           });
@@ -200,86 +208,71 @@
         spinNext();
       }
 
-      // -------------------------------------------------
-      // 單一捲軸「漸減速」轉動
-      // -------------------------------------------------
-      function spinOneReelEaseOut(scene, container, finalKey, duration, onStop) {
-        let startTime = scene.time.now;
-        let totalTime = duration;
+      // -------------------------------
+      // 單一捲軸 漸減速 停在中心
+      // -------------------------------
+      function spinOneReelEaseOut(scene, container, finalKey, duration, onStop){
+        let startTime=scene.time.now;
+        let baseSpeed=25; //初始速度
 
-        // 初始速度 (pixels per tick)
-        let baseSpeed = 25; // 可調大 => 更快
-
-        let spinEvent = scene.time.addEvent({
-          delay: 40,     // 每 40ms 更新
-          loop: true,
-          callback: () => {
-            let elapsed = scene.time.now - startTime;
-            let ratio = elapsed / totalTime; // 0->1
-
-            // "ease out" => speed = baseSpeed * (1 - ratio)
-            let currentSpeed = baseSpeed * (1 - ratio);
-            if(currentSpeed < 2) currentSpeed = 2; // 不要太慢
+        let spinEvent=scene.time.addEvent({
+          delay:40,
+          loop:true,
+          callback: ()=>{
+            let elapsed= scene.time.now - startTime;
+            let ratio= elapsed/duration;
+            // ease out speed
+            let currentSpeed= baseSpeed*(1-ratio);
+            if(currentSpeed<2) currentSpeed=2; // 最低速度
 
             // 向下移動
-            container.list.forEach(spr => {
+            container.list.forEach(spr=>{
               spr.y += currentSpeed;
-              if(spr.y > 80) {
-                // 超過下邊 => 移到最上邊
-                spr.y -= 240;
-                // 隨機符號
-                let possible = ["symbol1","symbol2","symbol3","symbol4","wild"];
+              // 若 y>80 =>移到最上面, 且 random texture (若還在spin階段)
+              if(spr.y>80 && elapsed < duration-80) {
+                spr.y-=240;
+                let possible=["symbol1","symbol2","symbol3","symbol4","wild"];
                 spr.setTexture(Phaser.Utils.Array.GetRandom(possible));
               }
             });
 
-            // 若時間到 => 停止
-            if(elapsed >= totalTime) {
+            if(elapsed>=duration){
               spinEvent.remove();
-
-              // 校正 => 中間 sprite y=0
-              let middleSpr = findClosestToZero(container);
-              let offset = middleSpr.y;
-              container.list.forEach(spr => {
-                spr.y -= offset;
-              });
-              // 中間 sprite 改最終結果
+              // 校正
+              let middleSpr=findClosestToZero(container);
+              let offset= middleSpr.y;
+              container.list.forEach(s=>{ s.y-=offset; });
+              // 用最終符號
               middleSpr.setTexture(finalKey);
-
               if(onStop) onStop();
             }
           }
         });
       }
 
-      // 找出最接近 y=0 的 sprite
-      function findClosestToZero(container) {
-        let target = null;
-        let minDist = Infinity;
-        container.list.forEach(spr => {
-          let dist = Math.abs(spr.y);
-          if(dist < minDist){
-            minDist = dist;
-            target = spr;
-          }
+      function findClosestToZero(container){
+        let t=null; let minDist=99999;
+        container.list.forEach(spr=>{
+          let d=Math.abs(spr.y);
+          if(d<minDist){ minDist=d; t=spr;}
         });
-        return target;
+        return t;
       }
 
-      // -------------------------------------------------
+      // -------------------------------
       // 獎勵紀錄
-      // -------------------------------------------------
+      // -------------------------------
       function addRewardLog(text){
         let logDiv = document.getElementById("reward-logs");
         if(!logDiv) return;
-        if(logDiv.innerHTML === "尚無紀錄") {
-          logDiv.innerHTML = "";
+        if(logDiv.innerHTML==="尚無紀錄"){
+          logDiv.innerHTML="";
         }
-        let now = new Date();
-        let timeStr = now.toLocaleTimeString();
-        let line = `[${timeStr}] ${text}`;
-        logDiv.innerHTML += line + "<br/>";
-        logDiv.scrollTop = logDiv.scrollHeight;
+        let now=new Date();
+        let timeStr=now.toLocaleTimeString();
+        let line=`[${timeStr}] ${text}`;
+        logDiv.innerHTML+=line+"<br/>";
+        logDiv.scrollTop= logDiv.scrollHeight;
       }
     </script>
   </body>
